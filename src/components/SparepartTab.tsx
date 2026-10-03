@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, PackageX, ShoppingCart, Plus, ChevronDown, ChevronRight, Loader2, X, FileText, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../supabase';
+import { triggerRipple } from '../utils/ripple';
 
 // TAMBAHAN AMAN: Menambahkan props untuk menerima data kiriman dari Beranda
 export default function SparepartTab({ preSelectedPart, onClearPreSelectedPart }: { preSelectedPart?: any, onClearPreSelectedPart?: () => void }) {
@@ -284,8 +285,8 @@ export default function SparepartTab({ preSelectedPart, onClearPreSelectedPart }
                 </div>
 
                 <button 
-                  onClick={handleInitiateOrder}
-                  className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-[20px] text-[15px] font-bold shadow-xl shadow-slate-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 outline-none mt-2"
+                  onClick={(e) => { triggerRipple(e); handleInitiateOrder(); }}
+                  className="ripple-btn w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-[20px] text-[15px] font-bold shadow-xl shadow-slate-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 outline-none mt-2"
                 >
                   Tambahkan ke Pesanan <ShoppingCart className="w-4 h-4" />
                 </button>

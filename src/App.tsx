@@ -11,6 +11,13 @@ import BookingModal from './components/BookingModal';
 import InternalPortal from './components/InternalPortal';
 import SparepartTab from './components/SparepartTab';
 import TrackerMockup from './components/TrackerMockup'; // <-- IMPORT TRACKER BARU
+import { triggerRipple } from './utils/ripple';
+import { 
+  sendLocalPushNotification, 
+  requestNotificationPermission, 
+  playNotificationSound,
+  OrderNotificationPayload 
+} from './utils/notifications';
 
 const BANNERS_FALLBACK = [
   { 
@@ -42,6 +49,69 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  // NOTIFIKASI LOKAL (LOCAL PUSH & PERSISTENT TOAST)
+  const [persistentNotif, setPersistentNotif] = useState<OrderNotificationPayload | null>(null);
+  const [notifHistory, setNotifHistory] = useState<OrderNotificationPayload[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('omeanfix_notifs');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isNotifCenterOpen, setIsNotifCenterOpen] = useState(false);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default');
+  const persistentTimerRef = useRef<any>(null);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('omeanfix_notifs', JSON.stringify(notifHistory));
+    } catch (_) {}
+  }, [notifHistory]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotifPermission(Notification.permission);
+    }
+  }, []);
+
+  const dispatchOrderNotification = (
+    orderCode: string,
+    title: string,
+    message: string,
+    statusType: 'baru' | 'proses' | 'jadwal' | 'pembayaran' | 'selesai' | 'batal' | 'info',
+    orderId?: string
+  ) => {
+    const payload: OrderNotificationPayload = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      orderId,
+      orderCode,
+      title,
+      message,
+      statusType,
+      timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      isRead: false
+    };
+
+    // 1. Trigger Local Web Notification API & Sound Chime
+    sendLocalPushNotification(title, {
+      body: message,
+      tag: `order-${orderCode}`
+    });
+
+    // 2. Set Rich Persistent In-App Notification (12 detik atau hingga ditutup pelanggan)
+    if (persistentTimerRef.current) {
+      clearTimeout(persistentTimerRef.current);
+    }
+    setPersistentNotif(payload);
+    persistentTimerRef.current = setTimeout(() => {
+      setPersistentNotif(null);
+    }, 12000);
+
+    // 3. Tambahkan ke riwayat notifikasi
+    setNotifHistory((prev) => [payload, ...prev.slice(0, 19)]);
+  };
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
@@ -135,11 +205,63 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
         fetchInitialData();
         if (payload.eventType === 'UPDATE' && payload.new) {
-          const st = (payload.new.status || payload.new.order_status || '').toLowerCase();
-          const pSt = (payload.new.payment_status || '').toLowerCase();
-          
-          if (pSt === 'lunas' || st === 'selesai') {
-            showToast('🎉 Pembayaran Terverifikasi! Transaksi Anda telah LUNAS.', 'success');
+          const oldSt = (payload.old?.status || payload.old?.order_status || '').toLowerCase();
+          const newSt = (payload.new.status || payload.new.order_status || '').toLowerCase();
+          const newPSt = (payload.new.payment_status || '').toLowerCase();
+          const ordCode = payload.new.order_code || (payload.new.id ? String(payload.new.id).slice(0, 8) : 'ORD');
+          const ordId = payload.new.id;
+
+          if (newPSt === 'lunas' || newSt === 'selesai') {
+            dispatchOrderNotification(
+              ordCode,
+              '🎉 Pembayaran Terverifikasi & Lunas!',
+              `Pesanan #${ordCode} telah selesai ditangani teknisi dan pembayaran terverifikasi.`,
+              'selesai',
+              ordId
+            );
+          } else if (newSt.includes('pembayaran') || newSt === 'menunggu_pembayaran') {
+            dispatchOrderNotification(
+              ordCode,
+              '💳 Tagihan Servis Diterbitkan',
+              `Teknisi telah menyelesaikan tindakan untuk pesanan #${ordCode}. Rincian invoice sudah tersedia.`,
+              'pembayaran',
+              ordId
+            );
+          } else if (newSt.includes('jadwal') || newSt === 'dijadwalkan') {
+            const raw = payload.new.note || '';
+            const schedMatch = raw.match(/\[JADWAL:\s*([^\]]+)\]/);
+            const schedDetail = schedMatch ? ` (${schedMatch[1]})` : '';
+            dispatchOrderNotification(
+              ordCode,
+              '📅 Jadwal Teknisi Dikonfirmasi',
+              `Pesanan #${ordCode} telah dijadwalkan oleh teknisi${schedDetail}. Harap bersiap di lokasi.`,
+              'jadwal',
+              ordId
+            );
+          } else if (newSt.includes('ditangani') || newSt.includes('proses') || newSt.includes('dalam_pengerjaan')) {
+            dispatchOrderNotification(
+              ordCode,
+              '🔧 Teknisi Sedang Menangani',
+              `Pesanan #${ordCode} saat ini sedang dalam proses pengerjaan dan servis oleh teknisi.`,
+              'proses',
+              ordId
+            );
+          } else if (newSt.includes('batal') || newSt === 'dibatalkan') {
+            dispatchOrderNotification(
+              ordCode,
+              '❌ Status Pesanan Dibatalkan',
+              `Pesanan #${ordCode} telah dibatalkan.`,
+              'batal',
+              ordId
+            );
+          } else if (newSt !== oldSt && newSt) {
+            dispatchOrderNotification(
+              ordCode,
+              '📋 Pembaruan Status Pesanan',
+              `Status pesanan #${ordCode} diubah menjadi "${payload.new.status || newSt}".`,
+              'info',
+              ordId
+            );
           }
         }
       })
@@ -310,7 +432,16 @@ export default function App() {
                   <span className="self-start px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[9px] font-bold tracking-widest uppercase mb-3 inline-block">{banner.label || 'INFO LAYANAN'}</span>
                   <h2 className="text-[22px] font-bold tracking-tight mb-1 leading-snug text-white drop-shadow-sm">{banner.title}</h2>
                   <p className="text-[12px] text-white/90 font-medium mb-4 line-clamp-1">{banner.description}</p>
-                  <button onClick={() => { if (categories.length > 0) handleCategoryClick(categories[0]); else setIsBookingOpen(true); }} className="self-start bg-white text-slate-900 px-5 py-2.5 rounded-xl text-[12px] font-bold shadow-sm transition-transform active:scale-95 inline-block outline-none">{banner.btn_text || 'Pesan Teknisi'}</button>
+                  <button 
+                    onClick={(e) => { 
+                      triggerRipple(e); 
+                      if (categories.length > 0) handleCategoryClick(categories[0]); 
+                      else setIsBookingOpen(true); 
+                    }} 
+                    className="ripple-btn self-start bg-white text-slate-900 px-5 py-2.5 rounded-xl text-[12px] font-bold shadow-sm transition-transform active:scale-95 inline-block outline-none"
+                  >
+                    {banner.btn_text || 'Pesan Teknisi'}
+                  </button>
                 </div>
               </div>
             ))}
@@ -413,7 +544,11 @@ export default function App() {
                       <h4 className="text-[14px] font-bold text-slate-800 truncate">{v.title}</h4>
                       <p className="text-[9px] text-slate-400 mt-1 leading-tight line-clamp-2">{v.description}</p>
                     </div>
-                    <button onClick={() => handleClaimVoucher(v)} disabled={isClaimed} className={`px-4 py-2 rounded-full text-[11px] font-bold shrink-0 z-10 mr-1 outline-none transition-all ${isClaimed ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none border border-slate-200' : 'bg-slate-900 text-white shadow-md hover:bg-slate-800 active:scale-95'}`}>
+                    <button 
+                      onClick={(e) => { triggerRipple(e); handleClaimVoucher(v); }} 
+                      disabled={isClaimed} 
+                      className={`ripple-btn px-4 py-2 rounded-full text-[11px] font-bold shrink-0 z-10 mr-1 outline-none transition-all ${isClaimed ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none border border-slate-200' : 'bg-slate-900 text-white shadow-md hover:bg-slate-800 active:scale-95'}`}
+                    >
                       {isClaimed ? <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Diklaim</span> : 'Klaim'}
                     </button>
                   </div>
@@ -825,6 +960,22 @@ export default function App() {
                   rawNote = rawNote.replace(/\[JADWAL:[^\]]+\]/g, '');
               }
 
+              let dpData: { nominal: number; status: string; bank: string } | null = null;
+              const dpMatch = rawNote.match(/\[DP:\s*([^\]]+)\]/);
+              if (dpMatch && dpMatch[1]) {
+                  dpData = { nominal: 50000, status: 'menunggu', bank: 'BCA' };
+                  dpMatch[1].split('|').forEach((p: string) => {
+                      const [k, v] = p.split('=');
+                      if (k && v) {
+                          const key = k.trim().toLowerCase();
+                          if (key === 'nominal' || key === 'n') dpData!.nominal = Number(v.trim()) || 50000;
+                          if (key === 'status' || key === 's') dpData!.status = v.trim().toLowerCase();
+                          if (key === 'bank' || key === 'b') dpData!.bank = v.trim();
+                      }
+                  });
+                  rawNote = rawNote.replace(/\[DP:[^\]]+\]/g, '');
+              }
+
               let hasPhoto = false;
               if (rawNote.includes('[FOTO_TERLAMPIR]')) {
                   hasPhoto = true;
@@ -905,6 +1056,32 @@ export default function App() {
                           </div>
                        )}
 
+                       {dpData && (
+                          <div className={`flex items-start gap-2.5 text-[11px] p-3 rounded-xl border shadow-xs animate-in fade-in ${
+                             dpData.status === 'lunas' 
+                                ? 'text-emerald-800 bg-emerald-50 border-emerald-200' 
+                                : 'text-amber-800 bg-amber-50 border-amber-200'
+                          }`}>
+                             {dpData.status === 'lunas' ? (
+                                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+                             ) : (
+                                <CreditCard className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                             )}
+                             <div className="flex-1 min-w-0">
+                                <p className="font-extrabold">
+                                   {dpData.status === 'lunas' 
+                                      ? `DP Rp ${dpData.nominal.toLocaleString('id-ID')} Terverifikasi (${dpData.bank})` 
+                                      : `Uang Muka (DP) Rp ${dpData.nominal.toLocaleString('id-ID')} (${dpData.bank})`}
+                                </p>
+                                <p className="text-[10px] font-medium mt-0.5 leading-snug opacity-90">
+                                   {dpData.status === 'lunas' 
+                                      ? 'Slot jadwal reservasi telah dikunci. Teknisi bersiap menuju lokasi sesuai waktu yang ditentukan.' 
+                                      : 'Silakan selesaikan pembayaran DP tanda jadi via WhatsApp ke admin untuk mengonfirmasi jadwal & pengerjaan teknisi.'}
+                                </p>
+                             </div>
+                          </div>
+                       )}
+
                        {hasPhoto && (
                           <div className="flex items-center gap-2 text-[11px] font-bold text-purple-700 bg-purple-50 px-3 py-2 rounded-xl border border-purple-100 shadow-xs">
                              <ImageIcon className="w-3.5 h-3.5 shrink-0 text-purple-500" />
@@ -949,7 +1126,12 @@ export default function App() {
                              <div className="p-2 bg-indigo-600 text-white rounded-lg shadow-sm"><FileText className="w-4 h-4" /></div>
                              <div>
                                 <p className="text-[9px] font-extrabold text-indigo-800 uppercase tracking-widest">Tagihan {pStatus === 'lunas' ? 'Lunas' : 'Tersedia'}</p>
-                                <p className="text-[14px] font-black text-slate-800 tracking-tight">Rp {invoiceData.total.toLocaleString('id-ID')}</p>
+                                <p className="text-[14px] font-black text-slate-800 tracking-tight">
+                                   Rp {dpData?.status === 'lunas' ? Math.max(0, invoiceData.total - dpData.nominal).toLocaleString('id-ID') : invoiceData.total.toLocaleString('id-ID')}
+                                </p>
+                                {dpData?.status === 'lunas' && (
+                                   <p className="text-[9px] text-emerald-700 font-extrabold">Potong DP Rp {dpData.nominal.toLocaleString('id-ID')}</p>
+                                )}
                              </div>
                           </div>
                           <button onClick={() => setShowInvoiceModal({ ord, invoiceData })} className="text-[11px] font-bold bg-white text-indigo-600 px-3.5 py-2 rounded-[10px] shadow-sm border border-indigo-100 active:scale-95 transition-transform">
@@ -1434,23 +1616,37 @@ export default function App() {
             <p className="text-[9px] font-bold text-slate-400 tracking-widest mt-1.5 uppercase">Cara Cepat, Solusi Tepat</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setIsPortalOpen(true)} className="relative p-2.5 bg-slate-50 rounded-full text-slate-600 hover:bg-slate-100 transition-colors border border-slate-100 outline-none">
+            <button onClick={(e) => { triggerRipple(e); setIsPortalOpen(true); }} className="ripple-btn relative p-2.5 bg-slate-50 rounded-full text-slate-600 hover:bg-slate-100 transition-colors border border-slate-100 outline-none" title="Portal Admin">
               <Lock className="w-5 h-5" />
             </button>
-            <button className="relative p-2.5 bg-slate-50 rounded-full text-slate-600 hover:bg-slate-100 transition-colors border border-slate-100 outline-none">
+            <button 
+              onClick={(e) => {
+                triggerRipple(e);
+                setIsNotifCenterOpen(true);
+                setNotifHistory(prev => prev.map(n => ({ ...n, isRead: true })));
+              }} 
+              className="ripple-btn relative p-2.5 bg-slate-50 rounded-full text-slate-600 hover:bg-slate-100 transition-colors border border-slate-100 outline-none"
+              title="Pusat Notifikasi"
+            >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>
+              {notifHistory.some(n => !n.isRead) ? (
+                <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white animate-pulse"></span>
+              ) : notifHistory.length > 0 ? (
+                <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border border-white"></span>
+              ) : null}
             </button>
           </div>
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto scrollbar-hide relative z-0 bg-[#F8F9FA]">
-        {activeTab === 'beranda' && <HomeContent />}
-        {activeTab === 'pesanan' && <OrdersView isHistory={false} />}
-        {activeTab === 'sparepart' && <SparepartTab preSelectedPart={preSelectedPart} onClearPreSelectedPart={() => setPreSelectedPart(null)} />}
-        {activeTab === 'riwayat' && <OrdersView isHistory={true} />}
-        {activeTab === 'profil' && <ProfileContent />}
+        <div key={activeTab} className="animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out fill-mode-both min-h-full">
+          {activeTab === 'beranda' && <HomeContent />}
+          {activeTab === 'pesanan' && <OrdersView isHistory={false} />}
+          {activeTab === 'sparepart' && <SparepartTab preSelectedPart={preSelectedPart} onClearPreSelectedPart={() => setPreSelectedPart(null)} />}
+          {activeTab === 'riwayat' && <OrdersView isHistory={true} />}
+          {activeTab === 'profil' && <ProfileContent />}
+        </div>
       </main>
 
       <nav className="fixed bottom-5 left-1/2 -translate-x-1/2 w-[95%] max-w-[420px] z-40">
@@ -1570,7 +1766,10 @@ export default function App() {
                       ))}
                     </ul>
                   </div>
-                  <button onClick={() => setMemStep('form')} className="w-full py-4 rounded-2xl text-[14px] font-bold text-white shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 shadow-slate-900/20 outline-none">
+                  <button 
+                    onClick={(e) => { triggerRipple(e); setMemStep('form'); }} 
+                    className="ripple-btn w-full py-4 rounded-2xl text-[14px] font-bold text-white shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 shadow-slate-900/20 outline-none"
+                  >
                     <span>{selectedSpecialService.cta_text || 'Daftar Sekarang'}</span><ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -1579,6 +1778,198 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* RICH PERSISTENT LOCAL PUSH NOTIFICATION SIMULATION BANNER */}
+      {persistentNotif && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[10000] w-[94%] max-w-md animate-in slide-in-from-top-6 fade-in duration-300">
+          <div className="bg-slate-900/95 backdrop-blur-xl border border-white/20 text-white rounded-[24px] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.35)] flex flex-col gap-3 relative overflow-hidden">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-2xl flex items-center justify-center shrink-0 ${
+                  persistentNotif.statusType === 'selesai' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                  persistentNotif.statusType === 'pembayaran' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
+                  persistentNotif.statusType === 'jadwal' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' :
+                  persistentNotif.statusType === 'proses' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                  persistentNotif.statusType === 'batal' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                  'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                }`}>
+                  <Bell className="w-5 h-5 animate-bounce" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider bg-white/10 px-2 py-0.5 rounded-md text-slate-300">
+                      #{persistentNotif.orderCode}
+                    </span>
+                    <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> {persistentNotif.timestamp}
+                    </span>
+                  </div>
+                  <h4 className="text-[14px] font-black text-white mt-1 leading-tight drop-shadow-xs">
+                    {persistentNotif.title}
+                  </h4>
+                </div>
+              </div>
+              <button 
+                onClick={() => setPersistentNotif(null)} 
+                className="p-1.5 bg-white/10 hover:bg-white/20 rounded-full text-slate-300 hover:text-white transition-colors"
+                title="Tutup Notifikasi"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-[12px] text-slate-200/90 font-medium leading-relaxed pl-1">
+              {persistentNotif.message}
+            </p>
+
+            <div className="flex items-center gap-2 pt-1 border-t border-white/10">
+              <button
+                onClick={(e) => {
+                  triggerRipple(e);
+                  setPersistentNotif(null);
+                  if (persistentNotif.statusType === 'selesai' || persistentNotif.statusType === 'batal') {
+                    setActiveTab('riwayat');
+                  } else {
+                    setActiveTab('pesanan');
+                  }
+                }}
+                className="ripple-btn flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-[12px] font-bold rounded-xl transition-all shadow-md shadow-blue-600/30 flex items-center justify-center gap-1.5"
+              >
+                <span>Lihat Pesanan</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setPersistentNotif(null)}
+                className="px-4 py-2.5 bg-white/10 hover:bg-white/15 active:scale-95 text-slate-300 text-[12px] font-bold rounded-xl transition-all"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PUSAT NOTIFIKASI MODAL (NOTIF CENTER) */}
+      {isNotifCenterOpen && (
+        <div className="fixed inset-0 z-[10001] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setIsNotifCenterOpen(false)}>
+          <div className="bg-white w-full max-w-md rounded-t-[32px] sm:rounded-[32px] p-6 pb-20 max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-full duration-300 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 shrink-0 sm:hidden"></div>
+            
+            <div className="flex justify-between items-center mb-4 shrink-0 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Bell className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-[16px] font-black text-slate-900 leading-tight">Pusat Notifikasi</h3>
+                  <p className="text-[11px] font-medium text-slate-500">Pembaruan status servis & teknisi</p>
+                </div>
+              </div>
+              <button onClick={() => setIsNotifCenterOpen(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 active:scale-90 transition-transform">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* WEB PUSH STATUS & PERMISSION BANNER */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-3.5 mb-4 shrink-0 flex items-center justify-between gap-3">
+              <div className="flex-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 block mb-0.5">Notifikasi Browser</span>
+                <p className="text-[11px] font-medium text-slate-700">
+                  {notifPermission === 'granted' ? 'Push notification aktif di browser Anda.' : 'Aktifkan agar selalu dapat info terbaru dari teknisi.'}
+                </p>
+              </div>
+              {notifPermission !== 'granted' ? (
+                <button
+                  onClick={async (e) => {
+                    triggerRipple(e);
+                    const res = await requestNotificationPermission();
+                    setNotifPermission(res);
+                    if (res === 'granted') {
+                      playNotificationSound();
+                      showToast('Push notifikasi browser berhasil diaktifkan!', 'success');
+                    }
+                  }}
+                  className="ripple-btn px-3 py-1.5 bg-blue-600 text-white text-[11px] font-bold rounded-xl shadow-xs active:scale-95 transition-transform shrink-0"
+                >
+                  Aktifkan
+                </button>
+              ) : (
+                <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-extrabold rounded-full flex items-center gap-1 shrink-0">
+                  <CheckCircle2 className="w-3 h-3" /> Aktif
+                </span>
+              )}
+            </div>
+
+            {/* ACTION SIMULASI TEST NOTIFIKASI */}
+            <div className="flex items-center justify-between mb-3 px-1">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Riwayat Status</span>
+              <button
+                onClick={(e) => {
+                  triggerRipple(e);
+                  dispatchOrderNotification(
+                    'CRB-35580',
+                    '🔧 Teknisi Menuju Lokasi Anda',
+                    'Teknisi OMEANFIX sedang menuju alamat Anda untuk pengecekan unit kulkas.',
+                    'proses'
+                  );
+                  setIsNotifCenterOpen(false);
+                }}
+                className="ripple-btn text-[11px] font-bold text-blue-600 hover:text-blue-800 underline active:scale-95 transition-transform"
+              >
+                Uji Notifikasi Lokal
+              </button>
+            </div>
+
+            {/* LIST RIWAYAT NOTIFIKASI */}
+            <div className="flex-1 overflow-y-auto scrollbar-hide space-y-2.5 pr-1">
+              {notifHistory.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 bg-slate-50 rounded-2xl border border-slate-100">
+                  <Bell className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs font-bold text-slate-600">Belum Ada Notifikasi</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Pembaruan dari teknisi akan muncul di sini secara otomatis.</p>
+                </div>
+              ) : (
+                notifHistory.map((notif) => (
+                  <div key={notif.id} className="bg-slate-50 hover:bg-slate-100/80 p-3.5 rounded-2xl border border-slate-200/80 transition-colors">
+                    <div className="flex justify-between items-start mb-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-black uppercase bg-white border border-slate-200 px-2 py-0.5 rounded-md text-slate-600">
+                          #{notif.orderCode}
+                        </span>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase ${
+                          notif.statusType === 'selesai' ? 'bg-emerald-100 text-emerald-800' :
+                          notif.statusType === 'pembayaran' ? 'bg-purple-100 text-purple-800' :
+                          notif.statusType === 'jadwal' ? 'bg-indigo-100 text-indigo-800' :
+                          notif.statusType === 'proses' ? 'bg-amber-100 text-amber-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {notif.statusType}
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-slate-400 font-medium">{notif.timestamp}</span>
+                    </div>
+                    <h4 className="text-[12px] font-bold text-slate-800">{notif.title}</h4>
+                    <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">{notif.message}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {notifHistory.length > 0 && (
+              <button
+                onClick={() => {
+                  setNotifHistory([]);
+                  sessionStorage.removeItem('omeanfix_notifs');
+                }}
+                className="mt-3 py-2 text-center text-[11px] font-bold text-rose-500 hover:text-rose-700 w-full"
+              >
+                Hapus Semua Riwayat Notifikasi
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* FLOATING TOAST NOTIFICATION BANNER */}
       {toast && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[10000] w-[90%] max-w-sm animate-in fade-in slide-in-from-top-4 duration-300">

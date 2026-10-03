@@ -4,6 +4,7 @@ import {
   MapPin, User, FileText, CheckCircle2, Package, Loader2, ArrowRight, Camera, Calendar, Truck, Home
 } from 'lucide-react';
 import { supabase } from '../supabase';
+import { triggerRipple } from '../utils/ripple';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -341,7 +342,11 @@ export default function BookingModal({ isOpen, onClose, selectedCategory }: Book
                   )}
 
                   <div className="pt-2">
-                    <button onClick={handleNextStep} disabled={!selectedUnit || !selectedAction || !selectedMethod} className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl text-[13px] shadow-lg shadow-slate-900/20 active:scale-95 transition-transform disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 outline-none">
+                    <button 
+                      onClick={(e) => { triggerRipple(e); handleNextStep(); }} 
+                      disabled={!selectedUnit || !selectedAction || !selectedMethod} 
+                      className="ripple-btn w-full bg-slate-900 text-white font-bold py-4 rounded-2xl text-[13px] shadow-lg shadow-slate-900/20 active:scale-95 transition-transform disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 outline-none"
+                    >
                       Selanjutnya <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -467,7 +472,11 @@ export default function BookingModal({ isOpen, onClose, selectedCategory }: Book
                       Kembali
                     </button>
                     {/* Logika Validasi Aman untuk Tombol Selanjutnya */}
-                    <button onClick={handleNextStep} disabled={(!isBawaSendiri && !custAddress) || !reserveDate || !timeSlot} className="flex-1 bg-slate-900 text-white font-bold py-4 rounded-2xl text-[13px] shadow-lg shadow-slate-900/20 active:scale-95 transition-transform disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 outline-none">
+                    <button 
+                      onClick={(e) => { triggerRipple(e); handleNextStep(); }} 
+                      disabled={(!isBawaSendiri && !custAddress) || !reserveDate || !timeSlot} 
+                      className="ripple-btn flex-1 bg-slate-900 text-white font-bold py-4 rounded-2xl text-[13px] shadow-lg shadow-slate-900/20 active:scale-95 transition-transform disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 outline-none"
+                    >
                       Selanjutnya <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -526,7 +535,11 @@ export default function BookingModal({ isOpen, onClose, selectedCategory }: Book
                     <button onClick={handlePrevStep} className="px-5 py-4 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl active:scale-95 transition-transform outline-none shadow-sm">
                       Kembali
                     </button>
-                    <button onClick={handleSubmit} disabled={!complaint || isSubmitting} className="flex-1 bg-blue-600 text-white font-bold py-4 rounded-2xl text-[13px] shadow-lg shadow-blue-600/30 active:scale-95 transition-transform disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 outline-none">
+                    <button 
+                      onClick={(e) => { triggerRipple(e); handleSubmit(e); }} 
+                      disabled={!complaint || isSubmitting} 
+                      className="ripple-btn flex-1 bg-blue-600 text-white font-bold py-4 rounded-2xl text-[13px] shadow-lg shadow-blue-600/30 active:scale-95 transition-transform disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 outline-none"
+                    >
                       {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>Kirim Pesanan</span>}
                     </button>
                   </div>
