@@ -56,6 +56,20 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
   const [viewPhotoModal, setViewPhotoModal] = useState<string | null>(null);
   const [settlingOrderId, setSettlingOrderId] = useState<string | null>(null);
 
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    type?: 'danger' | 'primary' | 'success';
+    onConfirm: () => void;
+  } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
   const [categoryName, setCategoryName] = useState('');
   const [categoryIcon, setCategoryIcon] = useState('');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
@@ -315,22 +329,13 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
     } catch (err: any) { alert("Gagal kirim invoice: " + err.message); }
   };
 
-  const handleVerifyPaymentAndSettle = async (ord: any, invData: any) => {
-    if (!ord) return;
-    const confirmMsg = `Konfirmasi Verifikasi Pembayaran:\n\n` +
-      `No. Pesanan: #${ord.order_code || String(ord.id).slice(0, 8)}\n` +
-      `Pelanggan: ${ord.customer_name || 'Pelanggan'}\n\n` +
-      `Tandai pesanan ini LUNAS & Selesai, serta catat pendapatannya secara otomatis ke Buku Kas?`;
-    
-    if (!window.confirm(confirmMsg)) return;
-
+  const executeSettlement = async (ord: any, invData: any) => {
     setSettlingOrderId(ord.id);
     try {
       const { error: updateErr } = await supabase
         .from('orders')
         .update({ 
           status: 'Selesai', 
-          order_status: 'Selesai', 
           payment_status: 'lunas' 
         })
         .eq('id', ord.id);
@@ -400,13 +405,24 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
         }
       }
 
-      alert("🎉 Pembayaran Berhasil Diverifikasi!\n\nPembayaran tagihan telah dikonfirmasi LUNAS, pesanan dinyatakan selesai, dan nominal transaksi otomatis masuk ke Buku Kas.");
+      showToast("🎉 Pembayaran LUNAS! Pesanan selesai & otomatis masuk Buku Kas.", "success");
       await fetchData();
     } catch (err: any) {
-      alert("Gagal memproses verifikasi pelunasan: " + err.message);
+      showToast("Gagal memproses verifikasi pelunasan: " + err.message, "error");
     } finally {
       setSettlingOrderId(null);
     }
+  };
+
+  const handleVerifyPaymentAndSettle = (ord: any, invData: any) => {
+    if (!ord) return;
+    setConfirmModal({
+      title: "Verifikasi Pembayaran & Pelunasan",
+      message: `Konfirmasi pelunasan untuk Pesanan #${ord.order_code || String(ord.id).slice(0, 8)} (${ord.customer_name || 'Pelanggan'})?\n\nPembayaran akan ditandai LUNAS, status pesanan menjadi Selesai, dan nominal otomatis tercatat di Buku Kas.`,
+      confirmLabel: "Ya, Verifikasi & Lunasi",
+      type: "success",
+      onConfirm: () => executeSettlement(ord, invData)
+    });
   };
 
   const handleSaveManualTransaction = async (e: React.FormEvent) => {
@@ -2333,6 +2349,61 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
           </div>
       )}
       
+      {/* Custom Toast Notification Banner */}
+      {toast && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-sm animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className={`p-4 rounded-2xl shadow-2xl border flex items-center gap-3 backdrop-blur-xl ${
+            toast.type === 'success' 
+              ? 'bg-emerald-950/90 text-emerald-200 border-emerald-500/30' 
+              : toast.type === 'error'
+              ? 'bg-rose-950/90 text-rose-200 border-rose-500/30'
+              : 'bg-slate-900/90 text-slate-200 border-slate-700/50'
+          }`}>
+            <div className={`p-2 rounded-xl shrink-0 ${
+              toast.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : toast.type === 'error' ? 'bg-rose-500/20 text-rose-400' : 'bg-slate-700 text-slate-300'
+            }`}>
+              {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+            </div>
+            <p className="text-[12px] font-bold leading-snug flex-1">{toast.message}</p>
+            <button onClick={() => setToast(null)} className="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Custom In-App Confirmation Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setConfirmModal(null)}>
+          <div className="bg-white p-6 rounded-[28px] max-w-sm w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className={`p-3 rounded-2xl ${confirmModal.type === 'danger' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h3 className="font-black text-slate-900 text-[16px] tracking-tight">{confirmModal.title}</h3>
+            </div>
+            <p className="text-[12px] text-slate-600 font-medium whitespace-pre-line leading-relaxed">{confirmModal.message}</p>
+            <div className="flex gap-2.5 pt-2">
+              <button onClick={() => setConfirmModal(null)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs active:scale-95 transition-all">
+                Batal
+              </button>
+              <button 
+                onClick={() => {
+                  const action = confirmModal.onConfirm;
+                  setConfirmModal(null);
+                  action();
+                }} 
+                className={`flex-1 py-3 text-white font-bold rounded-xl text-xs shadow-md active:scale-95 transition-all ${
+                  confirmModal.type === 'danger' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                }`}
+              >
+                {confirmModal.confirmLabel || 'Ya, Lanjutkan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isMenuOpen && (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={() => setIsMenuOpen(false)}>
           <div className="w-full max-w-md bg-white rounded-t-[32px] overflow-hidden flex flex-col max-h-[85vh] animate-in slide-in-from-bottom-full duration-300 ease-out shadow-2xl" onClick={e => e.stopPropagation()}>
