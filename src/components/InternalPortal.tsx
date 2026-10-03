@@ -4,8 +4,9 @@ import {
   BarChart3, Settings, Trash2, Edit3, Box, Megaphone, 
   Loader2, Hash, Award, UserPlus, Users, Search, Mail, Phone, User,
   Wind, Car, ShieldCheck, Wrench, Snowflake, Truck, Zap, Smartphone, CheckCircle2, Ticket, QrCode, Printer, Plus, ChevronLeft, ChevronRight, Calendar, Camera, Home, MessageCircle, ChevronDown, ChevronUp, XCircle, Wallet, TrendingUp, TrendingDown, DollarSign, CreditCard,
-  Sun, Moon, Database, AlertTriangle, ShieldAlert
+  Sun, Moon, Database, AlertTriangle, ShieldAlert, Download, FileSpreadsheet
 } from 'lucide-react';
+import ExcelJS from 'exceljs';
 import { supabase } from '../supabase';
 import { useTheme } from '../context/ThemeContext';
 import { triggerRipple } from '../utils/ripple';
@@ -24,6 +25,7 @@ const ADMIN_MODULES = [
   { id: 'katalog_khusus', label: 'Katalog Khusus', icon: Award, color: 'text-fuchsia-600', bg: 'bg-fuchsia-100' },
   { id: 'stok', label: 'Manajemen Stok', icon: Package, color: 'text-emerald-600', bg: 'bg-emerald-100' },
   { id: 'laporan', label: 'Laporan & Keuangan', icon: Wallet, color: 'text-amber-600', bg: 'bg-amber-100' },
+  { id: 'rekap_arsip', label: 'Rekap Laporan & Arsip', icon: FileSpreadsheet, color: 'text-emerald-600', bg: 'bg-emerald-100' },
   { id: 'pengaturan', label: 'Pengaturan Sistem', icon: Settings, color: 'text-slate-600', bg: 'bg-slate-200' }
 ];
 
@@ -31,7 +33,7 @@ const MENU_SECTIONS = [
   { title: 'Ringkasan & Analitik', items: ['dashboard'] },
   { title: 'Operasional Utama', items: ['pesanan', 'pelanggan'] },
   { title: 'Etalase & Beranda', items: ['banner', 'voucher', 'katalog', 'katalog_khusus', 'stok'] },
-  { title: 'Sistem & Laporan', items: ['laporan', 'pengaturan'] }
+  { title: 'Sistem & Laporan', items: ['laporan', 'rekap_arsip', 'pengaturan'] }
 ];
 
 export default function InternalPortal({ onBackToCustomer }: InternalPortalProps) {
@@ -239,6 +241,528 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
       type: "danger",
       onConfirm: handleResetSimulationOrders
     });
+  };
+
+  // 6. EKSPOR DATA PESANAN KE FORMAT EXCEL (.XLSX) & CSV
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  const exportOrdersToExcel = async () => {
+    if (!adminOrders || adminOrders.length === 0) {
+      showToastMsg("Tidak ada data pesanan untuk diekspor.", "error");
+      return;
+    }
+
+    setIsExportingExcel(true);
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'OMEANFIX Admin Portal';
+      workbook.lastModifiedBy = 'OMEANFIX Admin';
+      workbook.created = new Date();
+      workbook.modified = new Date();
+
+      const worksheet = workbook.addWorksheet('Laporan Pesanan', {
+        views: [{ showGridLines: true }],
+        pageSetup: { orientation: 'landscape', fitToPage: true }
+      });
+
+      // 1. BANNER JUDUL LAPORAN (Row 1-2)
+      worksheet.mergeCells('A1:T1');
+      const titleCell = worksheet.getCell('A1');
+      titleCell.value = 'LAPORAN TRANSAKSI & PESANAN LAYANAN - OMEANFIX';
+      titleCell.font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
+      titleCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF1E3A8A' } // Deep Navy Blue
+      };
+      titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      worksheet.getRow(1).height = 34;
+
+      worksheet.mergeCells('A2:T2');
+      const subTitleCell = worksheet.getCell('A2');
+      const now = new Date();
+      const dateFormatted = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      subTitleCell.value = `Arsip Laporan per: ${dateFormatted} WIB | Total: ${adminOrders.length} Data Pesanan`;
+      subTitleCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF475569' } };
+      subTitleCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF1F5F9' } // Soft Slate Grey
+      };
+      subTitleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      worksheet.getRow(2).height = 22;
+
+      // Row 3: Spacing
+      worksheet.getRow(3).height = 10;
+
+      // 2. HEADER TABEL (Row 4)
+      const headers = [
+        'No. Pesanan',
+        'Tanggal Pesanan',
+        'Nama Pelanggan',
+        'No. WhatsApp',
+        'Kecamatan / Lokasi',
+        'Alamat Lengkap',
+        'Objek / Unit Layanan',
+        'Jenis Layanan',
+        'Status Pesanan',
+        'Status Pembayaran',
+        'Jasa Servis (Rp)',
+        'Sparepart (Rp)',
+        'Layanan Ekstra (Rp)',
+        'Total Tagihan (Rp)',
+        'DP Nominal (Rp)',
+        'DP Status',
+        'DP Bank',
+        'Voucher Promo',
+        'Jadwal Reservasi',
+        'Keluhan & Catatan'
+      ];
+
+      const headerRow = worksheet.getRow(4);
+      headerRow.values = headers;
+      headerRow.height = 30;
+
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF1E40AF' } // Royal Indigo/Blue
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: false };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF93C5FD' } },
+          left: { style: 'thin', color: { argb: 'FF93C5FD' } },
+          bottom: { style: 'medium', color: { argb: 'FF1D4ED8' } },
+          right: { style: 'thin', color: { argb: 'FF93C5FD' } }
+        };
+      });
+
+      // 3. DATA ROWS (Row 5+)
+      let sumJasa = 0;
+      let sumPart = 0;
+      let sumLayanan = 0;
+      let sumTotal = 0;
+      let sumDp = 0;
+
+      adminOrders.forEach((ord, index) => {
+        const rawNote = ord.note || ord.complaint || ord.complaint_description || '';
+        
+        // Ekstraksi invoice
+        let nominalJasa = 0;
+        let nominalPart = 0;
+        let nominalLayanan = 0;
+        let totalTagihan = 0;
+        const invMatch = rawNote.match(/\[INVOICE:\s*([^\]]+)\]/);
+        if (invMatch && invMatch[1]) {
+          invMatch[1].split('|').forEach((p: string) => {
+            const [k, v] = p.split('=');
+            if (k && v) {
+              const key = k.trim().toLowerCase();
+              const val = Number(v.trim()) || 0;
+              if (key === 'j' || key === 'jasa') nominalJasa = val;
+              if (key === 'p' || key === 'part') nominalPart = val;
+              if (key === 'l' || key === 'layanan') nominalLayanan = val;
+              if (key === 't' || key === 'total') totalTagihan = val;
+            }
+          });
+          if (totalTagihan === 0) totalTagihan = nominalJasa + nominalPart + nominalLayanan;
+        }
+
+        // Estimasi
+        const estMatch = rawNote.match(/\[ESTIMASI:\s*([^\]]+)\]/);
+        if (estMatch && estMatch[1] && totalTagihan === 0) {
+          const estNum = Number(estMatch[1].replace(/\D/g, '')) || 0;
+          if (estNum > 0) totalTagihan = estNum;
+        }
+
+        // DP details
+        let dpNominal = 0;
+        let dpStatus = '-';
+        let dpBank = '-';
+        const dpMatch = rawNote.match(/\[DP:\s*([^\]]+)\]/);
+        if (dpMatch && dpMatch[1]) {
+          dpMatch[1].split('|').forEach((p: string) => {
+            const [k, v] = p.split('=');
+            if (k && v) {
+              const key = k.trim().toLowerCase();
+              if (key === 'nominal' || key === 'n') dpNominal = Number(v.trim()) || 0;
+              if (key === 'status' || key === 's') dpStatus = v.trim();
+              if (key === 'bank' || key === 'b') dpBank = v.trim();
+            }
+          });
+        }
+
+        // Voucher
+        let voucherCode = '-';
+        const promoMatch = rawNote.match(/\[PROMO_APPLIED:\s*([^\]]+)\]/);
+        if (promoMatch && promoMatch[1]) {
+          voucherCode = promoMatch[1].replace(/\|/g, ' - ').trim();
+        }
+
+        // Schedule
+        let schedule = '-';
+        const schedMatch = rawNote.match(/\[JADWAL:\s*([^\]]+)\]/);
+        if (schedMatch && schedMatch[1]) {
+          schedule = schedMatch[1].trim();
+        }
+
+        // Clean note
+        const cleanNote = rawNote
+          .replace(/\[PAYMENT_PROOF:[^\]]+\]/g, '')
+          .replace(/\[INVOICE:[^\]]+\]/g, '')
+          .replace(/\[ESTIMASI:[^\]]+\]/g, '')
+          .replace(/\[JADWAL:[^\]]+\]/g, '')
+          .replace(/\[DP:[^\]]+\]/g, '')
+          .replace(/\[PROMO_APPLIED:[^\]]+\]/g, '')
+          .replace(/\[FOTO:[^\]]+\]/g, '')
+          .replace(/\[FOTO_TERLAMPIR\]/gi, '')
+          .replace(/\[PELANGGAN MEMINTA TAMBAHAN PART:[^\]]+\]/g, '')
+          .trim();
+
+        const orderCode = ord.order_code || (ord.id ? String(ord.id).slice(0, 8) : 'ORD');
+        const orderDate = ord.created_at ? new Date(ord.created_at).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+        const custName = ord.customer_name || 'Pelanggan';
+        const custPhone = ord.customer_phone || ord.user_phone || '-';
+        const location = ord.customer_kecamatan || ord.location || '-';
+        const fullAddress = ord.customer_address || ord.address || '-';
+        const unitName = ord.unit_name || ord.custom_service_title || '-';
+        const actionType = ord.action_type || 'Servis';
+        const status = (ord.status || ord.order_status || 'Baru').replace(/_/g, ' ');
+        const paymentStatus = (ord.payment_status || 'Belum Lunas').replace(/_/g, ' ');
+
+        sumJasa += nominalJasa;
+        sumPart += nominalPart;
+        sumLayanan += nominalLayanan;
+        sumTotal += totalTagihan;
+        sumDp += dpNominal;
+
+        const rowValues = [
+          orderCode,
+          orderDate,
+          custName,
+          custPhone,
+          location,
+          fullAddress,
+          unitName,
+          actionType,
+          status,
+          paymentStatus,
+          nominalJasa,
+          nominalPart,
+          nominalLayanan,
+          totalTagihan,
+          dpNominal,
+          dpStatus,
+          dpBank,
+          voucherCode,
+          schedule,
+          cleanNote || '-'
+        ];
+
+        const row = worksheet.addRow(rowValues);
+        row.height = 22;
+        const isEven = index % 2 === 0;
+        const rowBgColor = isEven ? 'FFFFFFFF' : 'FFF8FAFC';
+
+        row.eachCell((cell, colNumber) => {
+          cell.font = { name: 'Calibri', size: 10, color: { argb: 'FF1E293B' } };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: rowBgColor }
+          };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+
+          // Currency Columns: 11 (Jasa), 12 (Part), 13 (Layanan), 14 (Total Tagihan), 15 (DP Nominal)
+          if ([11, 12, 13, 14, 15].includes(colNumber)) {
+            cell.numFmt = '#,##0';
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          } else if ([1, 2, 4, 8, 9, 10, 16, 17, 19].includes(colNumber)) {
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          } else {
+            cell.alignment = { vertical: 'middle', horizontal: 'left' };
+          }
+
+          // Status & Payment Badge Highlighting
+          if (colNumber === 9 || colNumber === 10) {
+            const valStr = String(cell.value || '').toLowerCase();
+            if (valStr.includes('selesai') || valStr.includes('lunas') || valStr.includes('verifikasi')) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } }; // Soft Emerald
+              cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF166534' } };
+            } else if (valStr.includes('proses') || valStr.includes('ditangani') || valStr.includes('jadwal') || valStr.includes('menunggu')) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } }; // Soft Amber
+              cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF92400E' } };
+            } else if (valStr.includes('batal')) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } }; // Soft Rose
+              cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF991B1B' } };
+            }
+          }
+        });
+      });
+
+      // 4. TOTAL ROW AT BOTTOM
+      const totalRowNumber = worksheet.lastRow ? worksheet.lastRow.number + 1 : 5;
+      worksheet.mergeCells(`A${totalRowNumber}:J${totalRowNumber}`);
+      const summaryLabelCell = worksheet.getCell(`A${totalRowNumber}`);
+      summaryLabelCell.value = 'TOTAL KESELURUHAN (RP)';
+      summaryLabelCell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF1E293B' } };
+      summaryLabelCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+      const totalRow = worksheet.getRow(totalRowNumber);
+      totalRow.getCell(11).value = sumJasa;
+      totalRow.getCell(12).value = sumPart;
+      totalRow.getCell(13).value = sumLayanan;
+      totalRow.getCell(14).value = sumTotal;
+      totalRow.getCell(15).value = sumDp;
+      totalRow.height = 26;
+
+      totalRow.eachCell((cell, colNumber) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE0E7FF' } // Indigo Tint
+        };
+        cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF1E1B4B' } };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF6366F1' } },
+          bottom: { style: 'double', color: { argb: 'FF4338CA' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+        };
+        if ([11, 12, 13, 14, 15].includes(colNumber)) {
+          cell.numFmt = '#,##0';
+          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+        }
+      });
+
+      // 5. AUTO FIT COLUMN WIDTHS
+      const colWidths = [
+        16, // No. Pesanan
+        20, // Tanggal
+        22, // Nama Pelanggan
+        16, // No. WhatsApp
+        20, // Kecamatan / Lokasi
+        30, // Alamat Lengkap
+        24, // Objek / Unit
+        16, // Jenis Layanan
+        18, // Status Pesanan
+        18, // Status Pembayaran
+        16, // Jasa Servis
+        16, // Sparepart
+        18, // Layanan Ekstra
+        20, // Total Tagihan
+        16, // DP Nominal
+        14, // DP Status
+        14, // DP Bank
+        22, // Voucher Promo
+        22, // Jadwal Reservasi
+        32  // Keluhan & Catatan
+      ];
+
+      worksheet.columns.forEach((column, i) => {
+        column.width = colWidths[i] || 18;
+      });
+
+      // 6. WRITE BUFFER & DOWNLOAD
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Laporan_Pesanan_OMEANFIX_${dateStr}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToastMsg(`Berhasil mengekspor ${adminOrders.length} data pesanan ke Excel (.xlsx)!`, "success");
+    } catch (err: any) {
+      console.error("Gagal mengekspor data Excel:", err);
+      showToastMsg("Gagal mengekspor data Excel: " + (err.message || "Terjadi kesalahan"), "error");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  // 7. EKSPOR DATA PESANAN KE FORMAT CSV
+  const exportOrdersToCSV = () => {
+    if (!adminOrders || adminOrders.length === 0) {
+      showToastMsg("Tidak ada data pesanan untuk diekspor.", "error");
+      return;
+    }
+
+    try {
+      const headers = [
+        'No. Pesanan',
+        'Tanggal Pesanan',
+        'Nama Pelanggan',
+        'No. WhatsApp',
+        'Kecamatan / Lokasi',
+        'Alamat Lengkap',
+        'Unit Layanan',
+        'Jenis Layanan',
+        'Status Pesanan',
+        'Status Pembayaran',
+        'Jasa Servis (Rp)',
+        'Sparepart (Rp)',
+        'Layanan Ekstra (Rp)',
+        'Total Tagihan (Rp)',
+        'DP Nominal (Rp)',
+        'DP Status',
+        'DP Bank',
+        'Voucher Promo',
+        'Jadwal Reservasi',
+        'Keluhan & Catatan'
+      ];
+
+      const rows = adminOrders.map((ord) => {
+        const rawNote = ord.note || ord.complaint || ord.complaint_description || '';
+        
+        // Ekstraksi rincian invoice
+        let nominalJasa = 0;
+        let nominalPart = 0;
+        let nominalLayanan = 0;
+        let totalTagihan = 0;
+        const invMatch = rawNote.match(/\[INVOICE:\s*([^\]]+)\]/);
+        if (invMatch && invMatch[1]) {
+          invMatch[1].split('|').forEach((p: string) => {
+            const [k, v] = p.split('=');
+            if (k && v) {
+              const key = k.trim().toLowerCase();
+              const val = Number(v.trim()) || 0;
+              if (key === 'j' || key === 'jasa') nominalJasa = val;
+              if (key === 'p' || key === 'part') nominalPart = val;
+              if (key === 'l' || key === 'layanan') nominalLayanan = val;
+              if (key === 't' || key === 'total') totalTagihan = val;
+            }
+          });
+          if (totalTagihan === 0) totalTagihan = nominalJasa + nominalPart + nominalLayanan;
+        }
+
+        // Estimasi
+        const estMatch = rawNote.match(/\[ESTIMASI:\s*([^\]]+)\]/);
+        if (estMatch && estMatch[1] && totalTagihan === 0) {
+          const estNum = Number(estMatch[1].replace(/\D/g, '')) || 0;
+          if (estNum > 0) totalTagihan = estNum;
+        }
+
+        // DP details
+        let dpNominal = 0;
+        let dpStatus = '-';
+        let dpBank = '-';
+        const dpMatch = rawNote.match(/\[DP:\s*([^\]]+)\]/);
+        if (dpMatch && dpMatch[1]) {
+          dpMatch[1].split('|').forEach((p: string) => {
+            const [k, v] = p.split('=');
+            if (k && v) {
+              const key = k.trim().toLowerCase();
+              if (key === 'nominal' || key === 'n') dpNominal = Number(v.trim()) || 0;
+              if (key === 'status' || key === 's') dpStatus = v.trim();
+              if (key === 'bank' || key === 'b') dpBank = v.trim();
+            }
+          });
+        }
+
+        // Voucher
+        let voucherCode = '-';
+        const promoMatch = rawNote.match(/\[PROMO_APPLIED:\s*([^\]]+)\]/);
+        if (promoMatch && promoMatch[1]) {
+          voucherCode = promoMatch[1].replace(/\|/g, ' - ').trim();
+        }
+
+        // Schedule
+        let schedule = '-';
+        const schedMatch = rawNote.match(/\[JADWAL:\s*([^\]]+)\]/);
+        if (schedMatch && schedMatch[1]) {
+          schedule = schedMatch[1].trim();
+        }
+
+        // Clean note
+        const cleanNote = rawNote
+          .replace(/\[PAYMENT_PROOF:[^\]]+\]/g, '')
+          .replace(/\[INVOICE:[^\]]+\]/g, '')
+          .replace(/\[ESTIMASI:[^\]]+\]/g, '')
+          .replace(/\[JADWAL:[^\]]+\]/g, '')
+          .replace(/\[DP:[^\]]+\]/g, '')
+          .replace(/\[PROMO_APPLIED:[^\]]+\]/g, '')
+          .replace(/\[FOTO:[^\]]+\]/g, '')
+          .replace(/\[FOTO_TERLAMPIR\]/gi, '')
+          .replace(/\[PELANGGAN MEMINTA TAMBAHAN PART:[^\]]+\]/g, '')
+          .trim();
+
+        const orderCode = ord.order_code || (ord.id ? String(ord.id).slice(0, 8) : 'ORD');
+        const orderDate = ord.created_at ? new Date(ord.created_at).toLocaleString('id-ID') : '-';
+        const custName = ord.customer_name || 'Pelanggan';
+        const custPhone = ord.customer_phone || ord.user_phone || '-';
+        const location = ord.customer_kecamatan || ord.location || '-';
+        const fullAddress = ord.customer_address || ord.address || '-';
+        const unitName = ord.unit_name || ord.custom_service_title || '-';
+        const actionType = ord.action_type || 'Servis';
+        const status = (ord.status || ord.order_status || 'Baru').replace(/_/g, ' ');
+        const paymentStatus = (ord.payment_status || 'Belum Lunas').replace(/_/g, ' ');
+
+        return [
+          orderCode,
+          orderDate,
+          custName,
+          custPhone,
+          location,
+          fullAddress,
+          unitName,
+          actionType,
+          status,
+          paymentStatus,
+          nominalJasa,
+          nominalPart,
+          nominalLayanan,
+          totalTagihan,
+          dpNominal,
+          dpStatus,
+          dpBank,
+          voucherCode,
+          schedule,
+          cleanNote || '-'
+        ];
+      });
+
+      const escapeCSVCell = (cell: any) => {
+        const str = String(cell ?? '');
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const csvContent = '\uFEFF' + [
+        headers.map(escapeCSVCell).join(','),
+        ...rows.map(row => row.map(escapeCSVCell).join(','))
+      ].join('\r\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Laporan_Pesanan_OMEANFIX_${dateStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToastMsg(`Berhasil mengekspor ${adminOrders.length} data pesanan ke file CSV!`, "success");
+    } catch (err: any) {
+      console.error("Gagal mengekspor data CSV:", err);
+      showToastMsg("Gagal mengekspor data: " + (err.message || "Terjadi kesalahan"), "error");
+    }
   };
 
   const fetchData = async () => {
@@ -4154,6 +4678,153 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
     </div>
   );
 
+  const renderRekapLaporanArsip = () => {
+    let totalOmzet = 0;
+    adminOrders.forEach(ord => {
+      const raw = ord.note || ord.complaint || ord.complaint_description || '';
+      const invMatch = raw.match(/\[INVOICE:\s*([^\]]+)\]/);
+      if (invMatch && invMatch[1]) {
+        invMatch[1].split('|').forEach((p: string) => {
+          if (p.startsWith('T=') || p.startsWith('t=')) {
+            totalOmzet += Number(p.split('=')[1]) || 0;
+          }
+        });
+      }
+    });
+
+    const lunasCount = adminOrders.filter(o => 
+      (o.status || '').toLowerCase() === 'selesai' || 
+      (o.payment_status || '').toLowerCase() === 'lunas'
+    ).length;
+
+    const dpOrdersCount = adminOrders.filter(o => {
+      const raw = o.note || o.complaint || '';
+      return raw.includes('[DP:');
+    }).length;
+
+    return (
+      <div className="animate-in fade-in pb-10 space-y-5 text-slate-800 dark:text-slate-100">
+        {/* Header Modul */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-3.5 transition-colors">
+          <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 shrink-0">
+            <FileSpreadsheet className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-[16px] text-slate-800 dark:text-white tracking-tight">Rekap Laporan & Arsip</h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Pusat unduhan dan pengarsipan berkas laporan transaksi</p>
+          </div>
+        </div>
+
+        {/* Ringkasan Arsip Data */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-3.5 transition-colors">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h4 className="font-extrabold text-[13px] text-slate-800 dark:text-white flex items-center gap-2">
+              <Database className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Status Data Terarsip</span>
+            </h4>
+            <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-black uppercase rounded-full border border-emerald-200 dark:border-emerald-800">
+              Siap Ekspor
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Total Pesanan</span>
+              <span className="text-[16px] font-black text-slate-900 dark:text-white">{adminOrders.length} Pesanan</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Transaksi Lunas</span>
+              <span className="text-[16px] font-black text-emerald-600 dark:text-emerald-400">{lunasCount} Selesai</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Pesanan Bertanda DP</span>
+              <span className="text-[16px] font-black text-indigo-600 dark:text-indigo-400">{dpOrdersCount} Pesanan</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Total Pelanggan</span>
+              <span className="text-[16px] font-black text-slate-900 dark:text-white">{customersData.length} Akun</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Kartu Ekspor Excel (.xlsx) & CSV */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-emerald-200/80 dark:border-emerald-900/60 shadow-sm space-y-4 transition-colors relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 shrink-0">
+                <FileSpreadsheet className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-extrabold text-[14px] text-slate-900 dark:text-white">Unduh Berkas Laporan</h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Pilih format unduhan file arsip yang dibutuhkan</p>
+              </div>
+            </div>
+            <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-black uppercase rounded-full border border-emerald-200 dark:border-emerald-800">
+              ExcelJS
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-900/40 text-[11px] text-emerald-900 dark:text-emerald-300 space-y-2 font-medium leading-relaxed">
+            <p className="font-bold flex items-center gap-1.5 text-emerald-950 dark:text-emerald-200">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Keunggulan Format Excel (.xlsx):</span>
+            </p>
+            <div className="grid grid-cols-2 gap-1.5 text-[10px] opacity-90 pl-1">
+              <div className="flex items-center gap-1"><span>✨</span> Header Navy Berwarna</div>
+              <div className="flex items-center gap-1"><span>💵</span> Format Angka Rupiah</div>
+              <div className="flex items-center gap-1"><span>🎨</span> Highlight Warna Status</div>
+              <div className="flex items-center gap-1"><span>📊</span> Baris Total Akumulasi</div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between px-1 text-xs">
+            <span className="text-slate-500 dark:text-slate-400 font-bold text-[11px]">Total Pesanan Siap Ekspor:</span>
+            <span className="font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+              {adminOrders.length} Pesanan
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                triggerRipple(e);
+                exportOrdersToExcel();
+              }}
+              disabled={isExportingExcel || adminOrders.length === 0}
+              className="ripple-btn py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white font-bold rounded-2xl text-[13px] shadow-lg shadow-emerald-600/20 disabled:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 outline-none cursor-pointer disabled:cursor-not-allowed"
+            >
+              {isExportingExcel ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Membuat Excel...</span>
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Unduh Excel (.XLSX)</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                triggerRipple(e);
+                exportOrdersToCSV();
+              }}
+              disabled={adminOrders.length === 0}
+              className="ripple-btn py-3.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:text-slate-400 dark:disabled:text-slate-600 font-bold rounded-2xl text-[13px] border border-slate-200 dark:border-slate-700 active:scale-95 transition-all flex items-center justify-center gap-2 outline-none cursor-pointer disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+              <span>Unduh CSV (.CSV)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderPengaturanSistem = () => {
     const orderLedgerCount = ledgerData.filter(l => Boolean(l.reference_order_id)).length;
     const manualLedgerCount = ledgerData.filter(l => !l.reference_order_id).length;
@@ -4339,6 +5010,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
            activeModule === 'banner' ? renderManajemenBanner() :
            activeModule === 'stok' ? renderManajemenStok() :
            activeModule === 'laporan' ? renderLaporanKeuangan() :
+           activeModule === 'rekap_arsip' ? renderRekapLaporanArsip() :
            activeModule === 'pengaturan' ? renderPengaturanSistem() :
            renderPlaceholder()}
         </div>
