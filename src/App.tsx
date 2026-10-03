@@ -4,12 +4,13 @@ import {
    Wind, Car, ShieldCheck, CheckCircle2, X, FileText, User, 
    Bell, Wrench, Package, Database, ArrowRight, LogOut, 
    ExternalLink, Sparkles, Search, Snowflake, Tv, Ticket, Home,
-  Truck, Zap, Smartphone, Award, Loader2, QrCode, History, Plus, Lock, Mail, Phone, Camera, XCircle, Calendar, Image as ImageIcon
+  Truck, Zap, Smartphone, Award, Loader2, QrCode, History, Plus, Lock, Mail, Phone, Camera, XCircle, Calendar, Image as ImageIcon, MapPin
 } from 'lucide-react';
 import { supabase } from './supabase';
 import BookingModal from './components/BookingModal';
 import InternalPortal from './components/InternalPortal';
 import SparepartTab from './components/SparepartTab';
+import TrackerMockup from './components/TrackerMockup'; // <-- IMPORT TRACKER BARU
 
 const BANNERS_FALLBACK = [
   { 
@@ -499,6 +500,9 @@ export default function App() {
     const [showInvoiceModal, setShowInvoiceModal] = useState<any | null>(null); 
     const [viewReceiptModal, setViewReceiptModal] = useState<string | null>(null);
     
+    // STATE UNTUK TRACKER MODAL
+    const [trackingOrder, setTrackingOrder] = useState<any | null>(null);
+    
     const [selectedFiles, setSelectedFiles] = useState<Record<string, File>>({});
     const [uploadingId, setUploadingId] = useState<string | null>(null);
 
@@ -954,6 +958,18 @@ export default function App() {
                     </div>
                   )}
 
+                  {/* TOMBOL LACAK PROGRESS - Integrasi Baru */}
+                  {sLower !== 'dibatalkan' && (
+                     <div className="mt-3 border-t border-slate-100 pt-3">
+                         <button 
+                             onClick={() => setTrackingOrder(ord)} 
+                             className="w-full flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 py-2.5 rounded-xl text-[12px] font-bold shadow-sm active:scale-95 transition-all outline-none"
+                         >
+                             <MapPin className="w-4 h-4" /> Lacak Status & Progress
+                         </button>
+                     </div>
+                  )}
+
                   {canCancel && (
                      <div className="pt-2 flex justify-end">
                         {confirmingCancelId === ord.id ? (
@@ -1096,6 +1112,14 @@ export default function App() {
                     <img src={viewReceiptModal} alt="Bukti Pembayaran" className="w-full rounded-[18px] object-contain" />
                 </div>
             </div>
+        )}
+
+        {/* MODAL TRACKER MOCKUP */}
+        {trackingOrder && (
+            <TrackerMockup 
+                order={trackingOrder} 
+                onClose={() => setTrackingOrder(null)} 
+            />
         )}
       </div>
     );
