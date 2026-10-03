@@ -4,7 +4,7 @@ import {
   BarChart3, Settings, Trash2, Edit3, Box, Megaphone, 
   Loader2, Hash, Award, UserPlus, Users, Search, Mail, Phone, User,
   Wind, Car, ShieldCheck, Wrench, Snowflake, Truck, Zap, Smartphone, CheckCircle2, Ticket, QrCode, Printer, Plus, ChevronLeft, ChevronRight, Calendar, Camera, Home, MessageCircle, ChevronDown, ChevronUp, XCircle, Wallet, TrendingUp, TrendingDown, DollarSign, CreditCard,
-  Sun, Moon
+  Sun, Moon, Database, AlertTriangle, ShieldAlert
 } from 'lucide-react';
 import { supabase } from '../supabase';
 import { useTheme } from '../context/ThemeContext';
@@ -192,6 +192,53 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
   const showToastMsg = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  // 5. PENGATURAN SISTEM & RESET DATA PESANAN UJI COBA
+  const [isResettingOrders, setIsResettingOrders] = useState(false);
+
+  const handleResetSimulationOrders = async () => {
+    setIsResettingOrders(true);
+    try {
+      // 1. Hapus catatan di tabel financial_ledger yang memiliki reference_order_id (transaksi hasil pesanan)
+      const { error: ledgerErr } = await supabase
+        .from('financial_ledger')
+        .delete()
+        .not('reference_order_id', 'is', null);
+
+      if (ledgerErr) {
+        console.warn('Catatan: financial_ledger cleanup:', ledgerErr);
+      }
+
+      // 2. Hapus seluruh baris data di tabel orders
+      const { error: ordersErr } = await supabase
+        .from('orders')
+        .delete()
+        .not('id', 'is', null);
+
+      if (ordersErr) throw ordersErr;
+
+      // 3. Panggil kembali fetchData() agar Dashboard, Pesanan, dan Laporan Keuangan langsung bersih (kosong/Rp 0)
+      await fetchData();
+
+      // 4. Tampilkan toast notifikasi
+      showToastMsg("Data pesanan simulasi berhasil dikosongkan!", "success");
+    } catch (err: any) {
+      console.error("Gagal mereset data pesanan:", err);
+      showToastMsg("Gagal mereset data pesanan: " + (err.message || 'Terjadi kesalahan sistem'), "error");
+    } finally {
+      setIsResettingOrders(false);
+    }
+  };
+
+  const confirmResetOrders = () => {
+    setConfirmModal({
+      title: "Reset Semua Data Pesanan & Kas Uji Coba?",
+      message: "⚠️ PERINGATAN SISTEM:\n\nApakah Anda yakin ingin mengosongkan SELURUH data pesanan simulasi?\n\n• Seluruh baris pada tabel 'orders' akan dihapus.\n• Seluruh catatan arus kas terkait pesanan di 'financial_ledger' akan dihapus.\n• Seluruh data master (Kategori, Objek/Unit, Sparepart, Banner, Voucher, Pelanggan) & kas manual non-pesanan TETAP UTUH & AMAN.\n\nTindakan ini permanen dan tidak dapat dibatalkan.",
+      confirmLabel: "Reset Semua Data Pesanan & Kas Uji Coba",
+      type: "danger",
+      onConfirm: handleResetSimulationOrders
+    });
   };
 
   const fetchData = async () => {
@@ -4107,6 +4154,128 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
     </div>
   );
 
+  const renderPengaturanSistem = () => {
+    const orderLedgerCount = ledgerData.filter(l => Boolean(l.reference_order_id)).length;
+    const manualLedgerCount = ledgerData.filter(l => !l.reference_order_id).length;
+
+    return (
+      <div className="animate-in fade-in pb-10 space-y-5 text-slate-800 dark:text-slate-100">
+        {/* Header Modul */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-3.5 transition-colors">
+          <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">
+            <Settings className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-[16px] text-slate-800 dark:text-white tracking-tight">Pengaturan Sistem</h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Konfigurasi aplikasi, status database, & utilitas data</p>
+          </div>
+        </div>
+
+        {/* Status Database & Ringkasan Data Master */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <Database className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <h4 className="font-extrabold text-[13px] text-slate-800 dark:text-white">Status Database & Data Master</h4>
+            </div>
+            <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold rounded-full border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> Terhubung
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Kategori Jasa</span>
+              <span className="text-[15px] font-black text-slate-800 dark:text-white">{categories.length} data</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Objek / Unit</span>
+              <span className="text-[15px] font-black text-slate-800 dark:text-white">{serviceUnits.length} data</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Stok Sparepart</span>
+              <span className="text-[15px] font-black text-slate-800 dark:text-white">{spareParts.length} item</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Promo / Voucher</span>
+              <span className="text-[15px] font-black text-slate-800 dark:text-white">{vouchers.length} aktif</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Banner Beranda</span>
+              <span className="text-[15px] font-black text-slate-800 dark:text-white">{savedBanners.length} slide</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Pelanggan</span>
+              <span className="text-[15px] font-black text-slate-800 dark:text-white">{customersData.length} akun</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Section Reset Data Pesanan Uji Coba */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-rose-200 dark:border-rose-900/60 shadow-sm space-y-4 transition-colors relative overflow-hidden">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 shrink-0">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-[14px] text-slate-900 dark:text-white">Pembersihan Data Uji Coba</h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Kelola & kosongkan data pesanan dan kas simulasi</p>
+            </div>
+          </div>
+
+          {/* Info Cards */}
+          <div className="space-y-2.5">
+            <div className="p-3.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/50 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+              <div className="text-[11px] text-rose-800 dark:text-rose-300 leading-relaxed font-medium">
+                <span className="font-bold block text-rose-900 dark:text-rose-200 mb-0.5">Data yang akan Dikosongkan:</span>
+                • <strong>{adminOrders.length} Pesanan</strong> pada tabel <code className="bg-rose-100 dark:bg-rose-900/60 px-1 py-0.5 rounded font-mono text-[10px]">orders</code><br />
+                • <strong>{orderLedgerCount} Catatan Arus Kas Pesanan</strong> pada tabel <code className="bg-rose-100 dark:bg-rose-900/60 px-1 py-0.5 rounded font-mono text-[10px]">financial_ledger</code>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/50 flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+              <div className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed font-medium">
+                <span className="font-bold block text-emerald-900 dark:text-emerald-200 mb-0.5">Data Terlindungi (TIDAK Dihapus):</span>
+                Seluruh data master (Kategori, Objek/Unit, Sparepart, Banner, Voucher, Pelanggan) & <strong>{manualLedgerCount} Kas Manual Operasional</strong> tetap aman 100%.
+              </div>
+            </div>
+          </div>
+
+          {/* Tombol Aksi Reset */}
+          <div className="pt-2">
+            <button
+              onClick={(e) => {
+                triggerRipple(e);
+                confirmResetOrders();
+              }}
+              disabled={isResettingOrders || (adminOrders.length === 0 && orderLedgerCount === 0)}
+              className="ripple-btn w-full py-4 px-5 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white font-bold rounded-2xl text-[13px] shadow-lg shadow-rose-600/20 disabled:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 outline-none cursor-pointer disabled:cursor-not-allowed"
+            >
+              {isResettingOrders ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Mereset Data Pesanan...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  <span>Reset Semua Data Pesanan & Kas Uji Coba</span>
+                </>
+              )}
+            </button>
+            {adminOrders.length === 0 && orderLedgerCount === 0 && (
+              <p className="text-center text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-2">
+                Data pesanan dan arus kas pesanan saat ini sudah kosong.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderPlaceholder = () => {
     const modData = ADMIN_MODULES.find(m => m.id === activeModule) || ADMIN_MODULES[0];
     return (
@@ -4170,6 +4339,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
            activeModule === 'banner' ? renderManajemenBanner() :
            activeModule === 'stok' ? renderManajemenStok() :
            activeModule === 'laporan' ? renderLaporanKeuangan() :
+           activeModule === 'pengaturan' ? renderPengaturanSistem() :
            renderPlaceholder()}
         </div>
       </main>

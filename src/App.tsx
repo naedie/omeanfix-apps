@@ -1582,7 +1582,6 @@ export default function App() {
               </div>
               <div>
                 <span className="text-[14px] font-bold text-slate-800 dark:text-slate-100 block">Mode Tampilan</span>
-                <span className="text-[11px] text-slate-400 dark:text-slate-400">{isDark ? 'Tema Gelap Aktif (Dark Mode)' : 'Tema Terang Aktif (Light Mode)'}</span>
               </div>
             </div>
             
@@ -1717,7 +1716,10 @@ export default function App() {
       </main>
 
       <nav className="fixed bottom-5 left-1/2 -translate-x-1/2 w-[95%] max-w-[420px] z-40">
-        <div className="glass-nav rounded-[32px] p-1.5 flex justify-between items-center px-3 border border-slate-200/80 dark:border-slate-800/80">
+        <div 
+          style={{ height: '67.2778px', width: '328.194px', paddingLeft: '24px', marginLeft: '12px' }}
+          className="glass-nav rounded-[32px] p-1.5 flex justify-between items-center px-3 border border-slate-200/80 dark:border-slate-800/80"
+        >
           <button onClick={() => setActiveTab('beranda')} className={`flex flex-col items-center gap-1 py-2 px-2 transition-all outline-none ${activeTab === 'beranda' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>
             <Home className="w-5 h-5" strokeWidth={activeTab === 'beranda' ? 2.5 : 2} />
             <span className="text-[9px] font-bold tracking-tight">Beranda</span>
