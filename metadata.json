@@ -1,0 +1,6 @@
+{
+  "name": "CirebonFix On-Demand Services",
+  "description": "Aplikasi layanan perbaikan on-demand modern untuk Kota & Kabupaten Cirebon dengan arsitektur Supabase RBAC dan antarmuka iOS Glassmorphism.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
