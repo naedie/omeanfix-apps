@@ -12,6 +12,7 @@ import BookingModal from './components/BookingModal';
 import InternalPortal from './components/InternalPortal';
 import SparepartTab from './components/SparepartTab';
 import TrackerMockup from './components/TrackerMockup'; // <-- IMPORT TRACKER BARU
+import HelpGuideModal from './components/HelpGuideModal';
 import { useTheme } from './context/ThemeContext';
 import { triggerRipple } from './utils/ripple';
 import { 
@@ -38,6 +39,7 @@ export default function App() {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
   const [isPortalOpen, setIsPortalOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   
   // STATE JEMBATAN: Menyimpan data suku cadang dari Beranda untuk dikirim ke SparepartTab
   const [preSelectedPart, setPreSelectedPart] = useState<any | null>(null);
@@ -1682,6 +1684,17 @@ export default function App() {
             >
               {isDark ? <Sun className="w-5 h-5 transition-transform duration-300" /> : <Moon className="w-5 h-5 transition-transform duration-300" />}
             </button>
+            <button 
+              onClick={(e) => { 
+                triggerRipple(e); 
+                setIsHelpModalOpen(true); 
+              }} 
+              className="ripple-btn relative p-2.5 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-100 dark:border-slate-700 outline-none" 
+              title="Panduan & Bantuan Aplikasi"
+              aria-label="Panduan & Bantuan Aplikasi"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
             <button onClick={(e) => { triggerRipple(e); setIsPortalOpen(true); }} className="ripple-btn relative p-2.5 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-100 dark:border-slate-700 outline-none" title="Portal Admin">
               <Lock className="w-5 h-5" />
             </button>
@@ -1716,10 +1729,7 @@ export default function App() {
       </main>
 
       <nav className="fixed bottom-5 left-1/2 -translate-x-1/2 w-[95%] max-w-[420px] z-40">
-        <div 
-          style={{ height: '67.2778px', width: '328.194px', paddingLeft: '12px', marginLeft: '12px', marginRight: '12px' }}
-          className="glass-nav rounded-[32px] p-1.5 flex justify-between items-center px-3 border border-slate-200/80 dark:border-slate-800/80"
-        >
+        <div className="glass-nav rounded-[32px] p-1.5 flex justify-between items-center px-3 border border-slate-200/80 dark:border-slate-800/80">
           <button onClick={() => setActiveTab('beranda')} className={`flex flex-col items-center gap-1 py-2 px-2 transition-all outline-none ${activeTab === 'beranda' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>
             <Home className="w-5 h-5" strokeWidth={activeTab === 'beranda' ? 2.5 : 2} />
             <span className="text-[9px] font-bold tracking-tight">Beranda</span>
@@ -2063,6 +2073,7 @@ export default function App() {
       )}
 
       <BookingModal isOpen={isBookingOpen} onClose={() => setIsBookingOpen(false)} selectedCategory={selectedCategory} />
+      <HelpGuideModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
     </div>
   );
 }

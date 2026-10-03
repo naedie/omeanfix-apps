@@ -4,12 +4,13 @@ import {
   BarChart3, Settings, Trash2, Edit3, Box, Megaphone, 
   Loader2, Hash, Award, UserPlus, Users, Search, Mail, Phone, User,
   Wind, Car, ShieldCheck, Wrench, Snowflake, Truck, Zap, Smartphone, CheckCircle2, Ticket, QrCode, Printer, Plus, ChevronLeft, ChevronRight, Calendar, Camera, Home, MessageCircle, ChevronDown, ChevronUp, XCircle, Wallet, TrendingUp, TrendingDown, DollarSign, CreditCard,
-  Sun, Moon, Database, AlertTriangle, ShieldAlert, Download, FileSpreadsheet
+  Sun, Moon, Database, AlertTriangle, ShieldAlert, Download, FileSpreadsheet, Filter, HelpCircle
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { supabase } from '../supabase';
 import { useTheme } from '../context/ThemeContext';
 import { triggerRipple } from '../utils/ripple';
+import HelpGuideModal from './HelpGuideModal';
 
 interface InternalPortalProps {
   onBackToCustomer: () => void;
@@ -143,6 +144,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
 
   // Banner & Voucher
   const [isBannerFormOpen, setIsBannerFormOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [bannerLabelFilter, setBannerLabelFilter] = useState('Semua');
   const [bannerBgUrl, setBannerBgUrl] = useState('');
   const [bannerLabel, setBannerLabel] = useState('');
@@ -190,10 +192,40 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
   const [opSettled, setOpSettled] = useState('true');
   const [isSubmittingOp, setIsSubmittingOp] = useState(false);
 
+  // Rekap Laporan & Arsip Filter States
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState('');
+  const [exportStatusFilter, setExportStatusFilter] = useState('semua');
+
   // --- UTILITY FUNCTIONS ---
   const showToastMsg = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  // Helper Filter Data Pesanan untuk Ekspor
+  const getFilteredExportOrders = () => {
+    return adminOrders.filter((ord) => {
+      // Filter status pesanan
+      const st = (ord.status || ord.order_status || '').toLowerCase();
+      if (exportStatusFilter !== 'semua') {
+        if (exportStatusFilter === 'baru' && !['menunggu_konfirmasi', 'menunggu konfirmasi', 'baru', 'diterima'].includes(st)) return false;
+        if (exportStatusFilter === 'proses' && !['ditangani', 'dalam_pengerjaan', 'proses'].includes(st)) return false;
+        if (exportStatusFilter === 'jadwal' && !['dijadwalkan', 'jadwal'].includes(st)) return false;
+        if (exportStatusFilter === 'selesai' && !['selesai', 'lunas', 'menunggu pembayaran', 'menunggu_pembayaran', 'selesai ditangani'].includes(st)) return false;
+        if (exportStatusFilter === 'batal' && !['dibatalkan', 'batal'].includes(st)) return false;
+      }
+
+      // Filter rentang tanggal
+      if (ord.created_at) {
+        const orderDate = new Date(ord.created_at);
+        const orderDateStr = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}-${String(orderDate.getDate()).padStart(2, '0')}`;
+        if (exportStartDate && orderDateStr < exportStartDate) return false;
+        if (exportEndDate && orderDateStr > exportEndDate) return false;
+      }
+
+      return true;
+    });
   };
 
   // 5. PENGATURAN SISTEM & RESET DATA PESANAN UJI COBA
@@ -247,8 +279,9 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   const exportOrdersToExcel = async () => {
-    if (!adminOrders || adminOrders.length === 0) {
-      showToastMsg("Tidak ada data pesanan untuk diekspor.", "error");
+    const targetOrders = getFilteredExportOrders();
+    if (!targetOrders || targetOrders.length === 0) {
+      showToastMsg("Tidak ada data pesanan yang sesuai dengan filter yang dipilih.", "error");
       return;
     }
 
@@ -282,7 +315,9 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
       const subTitleCell = worksheet.getCell('A2');
       const now = new Date();
       const dateFormatted = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-      subTitleCell.value = `Arsip Laporan per: ${dateFormatted} WIB | Total: ${adminOrders.length} Data Pesanan`;
+      const filterLabel = exportStatusFilter === 'semua' ? 'Semua Status' : exportStatusFilter.toUpperCase();
+      const dateRangeLabel = (exportStartDate || exportEndDate) ? `Rentang: ${exportStartDate || 'Awal'} s/d ${exportEndDate || 'Hari ini'}` : 'Semua Periode';
+      subTitleCell.value = `Arsip Laporan: ${dateFormatted} WIB | Status: ${filterLabel} | ${dateRangeLabel} | Total: ${targetOrders.length} Data Pesanan`;
       subTitleCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF475569' } };
       subTitleCell.fill = {
         type: 'pattern',
@@ -346,7 +381,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
       let sumTotal = 0;
       let sumDp = 0;
 
-      adminOrders.forEach((ord, index) => {
+      targetOrders.forEach((ord, index) => {
         const rawNote = ord.note || ord.complaint || ord.complaint_description || '';
         
         // Ekstraksi invoice
@@ -576,14 +611,15 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      const filterSlug = exportStatusFilter !== 'semua' ? `_${exportStatusFilter}` : '';
       link.setAttribute('href', url);
-      link.setAttribute('download', `Laporan_Pesanan_OMEANFIX_${dateStr}.xlsx`);
+      link.setAttribute('download', `Laporan_Pesanan_OMEANFIX${filterSlug}_${dateStr}.xlsx`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      showToastMsg(`Berhasil mengekspor ${adminOrders.length} data pesanan ke Excel (.xlsx)!`, "success");
+      showToastMsg(`Berhasil mengekspor ${targetOrders.length} data pesanan ke Excel (.xlsx)!`, "success");
     } catch (err: any) {
       console.error("Gagal mengekspor data Excel:", err);
       showToastMsg("Gagal mengekspor data Excel: " + (err.message || "Terjadi kesalahan"), "error");
@@ -594,8 +630,9 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
 
   // 7. EKSPOR DATA PESANAN KE FORMAT CSV
   const exportOrdersToCSV = () => {
-    if (!adminOrders || adminOrders.length === 0) {
-      showToastMsg("Tidak ada data pesanan untuk diekspor.", "error");
+    const targetOrders = getFilteredExportOrders();
+    if (!targetOrders || targetOrders.length === 0) {
+      showToastMsg("Tidak ada data pesanan yang sesuai dengan filter yang dipilih.", "error");
       return;
     }
 
@@ -623,7 +660,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
         'Keluhan & Catatan'
       ];
 
-      const rows = adminOrders.map((ord) => {
+      const rows = targetOrders.map((ord) => {
         const rawNote = ord.note || ord.complaint || ord.complaint_description || '';
         
         // Ekstraksi rincian invoice
@@ -751,14 +788,15 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
       const link = document.createElement('a');
       const now = new Date();
       const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      const filterSlug = exportStatusFilter !== 'semua' ? `_${exportStatusFilter}` : '';
       link.setAttribute('href', url);
-      link.setAttribute('download', `Laporan_Pesanan_OMEANFIX_${dateStr}.csv`);
+      link.setAttribute('download', `Laporan_Pesanan_OMEANFIX${filterSlug}_${dateStr}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      showToastMsg(`Berhasil mengekspor ${adminOrders.length} data pesanan ke file CSV!`, "success");
+      showToastMsg(`Berhasil mengekspor ${targetOrders.length} data pesanan ke file CSV!`, "success");
     } catch (err: any) {
       console.error("Gagal mengekspor data CSV:", err);
       showToastMsg("Gagal mengekspor data: " + (err.message || "Terjadi kesalahan"), "error");
@@ -4679,28 +4717,38 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
   );
 
   const renderRekapLaporanArsip = () => {
-    let totalOmzet = 0;
-    adminOrders.forEach(ord => {
+    const filteredOrders = getFilteredExportOrders();
+
+    let filteredOmzet = 0;
+    filteredOrders.forEach(ord => {
       const raw = ord.note || ord.complaint || ord.complaint_description || '';
       const invMatch = raw.match(/\[INVOICE:\s*([^\]]+)\]/);
       if (invMatch && invMatch[1]) {
         invMatch[1].split('|').forEach((p: string) => {
           if (p.startsWith('T=') || p.startsWith('t=')) {
-            totalOmzet += Number(p.split('=')[1]) || 0;
+            filteredOmzet += Number(p.split('=')[1]) || 0;
           }
         });
       }
     });
 
-    const lunasCount = adminOrders.filter(o => 
+    const lunasCount = filteredOrders.filter(o => 
       (o.status || '').toLowerCase() === 'selesai' || 
       (o.payment_status || '').toLowerCase() === 'lunas'
     ).length;
 
-    const dpOrdersCount = adminOrders.filter(o => {
+    const dpOrdersCount = filteredOrders.filter(o => {
       const raw = o.note || o.complaint || '';
       return raw.includes('[DP:');
     }).length;
+
+    const isFilterActive = Boolean(exportStartDate || exportEndDate || exportStatusFilter !== 'semua');
+
+    const resetFilters = () => {
+      setExportStartDate('');
+      setExportEndDate('');
+      setExportStatusFilter('semua');
+    };
 
     return (
       <div className="animate-in fade-in pb-10 space-y-5 text-slate-800 dark:text-slate-100">
@@ -4715,22 +4763,99 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
           </div>
         </div>
 
-        {/* Ringkasan Arsip Data */}
+        {/* SECTION FILTER: RENTANG TANGGAL & STATUS */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <h4 className="font-extrabold text-[13px] text-slate-800 dark:text-white">Filter Data Ekspor</h4>
+            </div>
+            {isFilterActive && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer outline-none"
+              >
+                <XCircle className="w-3.5 h-3.5" /> Reset Filter
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Start Date */}
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-slate-400" /> Tanggal Mulai (Start Date)
+              </label>
+              <input
+                type="date"
+                value={exportStartDate}
+                onChange={(e) => setExportStartDate(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 px-3.5 py-2.5 rounded-xl text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-colors"
+              />
+            </div>
+
+            {/* End Date */}
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-slate-400" /> Tanggal Akhir (End Date)
+              </label>
+              <input
+                type="date"
+                value={exportEndDate}
+                onChange={(e) => setExportEndDate(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 px-3.5 py-2.5 rounded-xl text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3 text-slate-400" /> Status Pesanan
+            </label>
+            <select
+              value={exportStatusFilter}
+              onChange={(e) => setExportStatusFilter(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 px-3.5 py-2.5 rounded-xl text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <option value="semua">Semua Status Pesanan (Semua Data)</option>
+              <option value="baru">Baru / Menunggu Konfirmasi</option>
+              <option value="proses">Sedang Diproses / Ditangani</option>
+              <option value="jadwal">Dijadwalkan (Janji Temu)</option>
+              <option value="selesai">Selesai / Pembayaran Lunas</option>
+              <option value="batal">Dibatalkan</option>
+            </select>
+          </div>
+
+          {/* Indikator Filter Aktif */}
+          <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-900/50 rounded-xl flex items-center justify-between text-xs">
+            <span className="text-blue-900 dark:text-blue-300 font-semibold text-[11px] flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Hasil Penyaringan: <strong>{filteredOrders.length}</strong> dari {adminOrders.length} total pesanan</span>
+            </span>
+            <span className="font-extrabold text-[11px] text-blue-800 dark:text-blue-300">
+              {filteredOrders.length > 0 ? `Rp ${filteredOmzet.toLocaleString('id-ID')}` : 'Rp 0'}
+            </span>
+          </div>
+        </div>
+
+        {/* Ringkasan Arsip Data Tersaring */}
         <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-3.5 transition-colors">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <h4 className="font-extrabold text-[13px] text-slate-800 dark:text-white flex items-center gap-2">
               <Database className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Status Data Terarsip</span>
+              <span>Ringkasan Data Tersaring</span>
             </h4>
             <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-black uppercase rounded-full border border-emerald-200 dark:border-emerald-800">
-              Siap Ekspor
+              {filteredOrders.length} Data Siap
             </span>
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Total Pesanan</span>
-              <span className="text-[16px] font-black text-slate-900 dark:text-white">{adminOrders.length} Pesanan</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Pesanan Terpilih</span>
+              <span className="text-[16px] font-black text-slate-900 dark:text-white">{filteredOrders.length} Pesanan</span>
             </div>
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Transaksi Lunas</span>
@@ -4741,8 +4866,8 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
               <span className="text-[16px] font-black text-indigo-600 dark:text-indigo-400">{dpOrdersCount} Pesanan</span>
             </div>
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Total Pelanggan</span>
-              <span className="text-[16px] font-black text-slate-900 dark:text-white">{customersData.length} Akun</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Total Omset Data</span>
+              <span className="text-[14px] font-black text-slate-900 dark:text-white truncate">Rp {filteredOmzet.toLocaleString('id-ID')}</span>
             </div>
           </div>
         </div>
@@ -4755,7 +4880,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                 <FileSpreadsheet className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="font-extrabold text-[14px] text-slate-900 dark:text-white">Unduh Berkas Laporan</h4>
+                <h4 className="font-extrabold text-[14px] text-slate-900 dark:text-white">Unduh Berkas Laporan Tersaring</h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Pilih format unduhan file arsip yang dibutuhkan</p>
               </div>
             </div>
@@ -4780,7 +4905,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
           <div className="flex items-center justify-between px-1 text-xs">
             <span className="text-slate-500 dark:text-slate-400 font-bold text-[11px]">Total Pesanan Siap Ekspor:</span>
             <span className="font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-              {adminOrders.length} Pesanan
+              {filteredOrders.length} Pesanan
             </span>
           </div>
 
@@ -4791,7 +4916,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                 triggerRipple(e);
                 exportOrdersToExcel();
               }}
-              disabled={isExportingExcel || adminOrders.length === 0}
+              disabled={isExportingExcel || filteredOrders.length === 0}
               className="ripple-btn py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white font-bold rounded-2xl text-[13px] shadow-lg shadow-emerald-600/20 disabled:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 outline-none cursor-pointer disabled:cursor-not-allowed"
             >
               {isExportingExcel ? (
@@ -4813,7 +4938,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                 triggerRipple(e);
                 exportOrdersToCSV();
               }}
-              disabled={adminOrders.length === 0}
+              disabled={filteredOrders.length === 0}
               className="ripple-btn py-3.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:text-slate-400 dark:disabled:text-slate-600 font-bold rounded-2xl text-[13px] border border-slate-200 dark:border-slate-700 active:scale-95 transition-all flex items-center justify-center gap-2 outline-none cursor-pointer disabled:cursor-not-allowed"
             >
               <Download className="w-4 h-4 text-slate-500 dark:text-slate-400" />
@@ -4985,6 +5110,17 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
             >
               {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
             </button>
+            <button 
+              onClick={(e) => {
+                triggerRipple(e);
+                setIsHelpModalOpen(true);
+              }}
+              aria-label="Panduan & Bantuan"
+              title="Panduan & Bantuan Aplikasi"
+              className="p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700 shadow-sm outline-none transition-all"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
             <button onClick={fetchData} className={`p-2.5 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 rounded-full border border-blue-100/50 dark:border-blue-800/60 shadow-sm outline-none ${isRefreshing ? 'animate-spin' : 'hover:bg-blue-100 dark:hover:bg-blue-900/50'}`}>
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -5121,6 +5257,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
           </div>
         </div>
       )}
+      <HelpGuideModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
     </div>
   );
 }

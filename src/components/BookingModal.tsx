@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabase';
 import { triggerRipple } from '../utils/ripple';
+import VoiceInputButton from './VoiceInputButton';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -570,8 +571,16 @@ export default function BookingModal({ isOpen, onClose, selectedCategory }: Book
                      </h3>
                      
                      <div>
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5 ml-1">Jelaskan Masalah</label>
-                        <textarea value={complaint} onChange={(e) => setComplaint(e.target.value)} placeholder="AC kurang dingin, mesin cuci mati total..." rows={3} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-[16px] text-[12px] font-medium outline-none resize-none focus:border-blue-500 focus:bg-white" />
+                        <div className="flex items-center justify-between mb-1.5 ml-1">
+                           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Jelaskan Masalah</label>
+                           <VoiceInputButton 
+                              currentValue={complaint}
+                              onTranscript={(text) => setComplaint(text)}
+                              buttonText="Dikte Suara"
+                              placeholderPrompt="Silakan jelaskan kendala atau kerusakan unit..."
+                           />
+                        </div>
+                        <textarea value={complaint} onChange={(e) => setComplaint(e.target.value)} placeholder="AC kurang dingin, mesin cuci mati total... (atau gunakan tombol Dikte Suara)" rows={3} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-[16px] text-[12px] font-medium outline-none resize-none focus:border-blue-500 focus:bg-white" />
                      </div>
 
                      {/* UNGGAH FOTO KERUSAKAN */}

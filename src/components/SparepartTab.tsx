@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, PackageX, ShoppingCart, Plus, ChevronDown, ChevronRight, Loader2, X, FileText, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../supabase';
 import { triggerRipple } from '../utils/ripple';
+import VoiceInputButton from './VoiceInputButton';
 
 // TAMBAHAN AMAN: Menambahkan props untuk menerima data kiriman dari Beranda
 export default function SparepartTab({ preSelectedPart, onClearPreSelectedPart }: { preSelectedPart?: any, onClearPreSelectedPart?: () => void }) {
@@ -148,11 +149,27 @@ export default function SparepartTab({ preSelectedPart, onClearPreSelectedPart }
           </div>
           <input
             type="text"
-            placeholder="Cari sparepart..."
+            placeholder="Cari sparepart... (mis: Kapasitor AC)"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-11 pr-4 py-3.5 rounded-2xl text-[13px] font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-11 pr-20 py-3.5 rounded-2xl text-[13px] font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
           />
+          <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center gap-1">
+            {searchQuery && (
+              <button 
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <VoiceInputButton
+              compact
+              appendMode={false}
+              onTranscript={(text) => setSearchQuery(text)}
+            />
+          </div>
         </div>
 
         <div className="flex overflow-x-auto scrollbar-hide gap-2 -mx-5 px-5">
