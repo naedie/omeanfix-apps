@@ -134,7 +134,9 @@ export default function App() {
   const [memNotes, setMemNotes] = useState('');
   const [isSubmittingMem, setIsSubmittingMem] = useState(false);
 
-  const [profileStep, setProfileStep] = useState<'main' | 'edit_profile' | 'edit_password'>('main');
+  const [profileStep, setProfileStep] = useState<'main' | 'edit_profile' | 'edit_password' | 'help_center'>('main');
+  const [helpSearchQuery, setHelpSearchQuery] = useState('');
+  const [selectedHelpTopicId, setSelectedHelpTopicId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [profName, setProfName] = useState('Pelanggan Setia');
   const [profPhone, setProfPhone] = useState('0812-3456-7890');
@@ -1562,6 +1564,205 @@ export default function App() {
       );
     }
 
+    if (profileStep === 'help_center') {
+      const HELP_TOPICS = [
+        {
+          id: 'step-1',
+          step: 'Langkah 1',
+          title: 'Pilih Kategori & Layanan Servis',
+          category: 'Pemesanan',
+          icon: Wrench,
+          summary: 'Cara memilih jasa perawatan atau perbaikan perangkat rumah tangga.',
+          details: [
+            'Buka halaman Beranda OMEANFIX.',
+            'Pilih kategori jasa yang Anda butuhkan (contoh: AC, Mesin Cuci, Kulkas, Pompa Air, dll).',
+            'Tentukan jenis tindakan apakah Perawatan Berkala atau Perbaikan Kerusakan.',
+            'Pilih metode pelayanan: Panggil Teknisi ke Rumah atau Bawa Sendiri ke Workshop.'
+          ]
+        },
+        {
+          id: 'step-2',
+          step: 'Langkah 2',
+          title: 'Isi Data Diri, Lokasi & Jadwal',
+          category: 'Reservasi',
+          icon: Calendar,
+          summary: 'Menentukan alamat lokasi pengerjaan dan waktu kedatangan teknisi.',
+          details: [
+            'Masukkan alamat lengkap beserta patokan agar teknisi mudah menemukan lokasi Anda.',
+            'Pilih tanggal kedatangan yang tersedia pada kalender interaktif.',
+            'Pilih slot waktu yang diinginkan (Pagi, Siang, Sore, atau Malam).'
+          ]
+        },
+        {
+          id: 'step-3',
+          step: 'Langkah 3',
+          title: 'Tulis Keluhan & Gunakan Dikte Suara',
+          category: 'Fitur Suara',
+          icon: FileText,
+          summary: 'Memasukkan detail kerusakan dengan mengetik atau berbicara langsung.',
+          details: [
+            'Jelaskan keluhan kerusakan unit pada kolom detail.',
+            'Gunakan tombol "Dikte Suara" (ikon mikrofon) untuk berbicara langsung tanpa mengetik.',
+            'Lampirkan foto kondisi unit yang rusak jika diperlukan (opsional).',
+            'Gunakan kupon dari Voucher Wallet untuk potongan harga.'
+          ]
+        },
+        {
+          id: 'step-4',
+          step: 'Langkah 4',
+          title: 'Kirim Pesanan & Lacak Real-Time',
+          category: 'Pelacakan',
+          icon: Truck,
+          summary: 'Memantau status pengerjaan teknisi dan progres perbaikan.',
+          details: [
+            'Setelah pesanan dibuat, Anda akan mendapatkan Nomor Pesanan unik (contoh: #ORD-XXXX).',
+            'Gunakan menu "Lacak Status Pesanan" di beranda untuk memantau perjalanan teknisi secara real-time.',
+            'Terima notifikasi instan saat teknisi tiba dan saat perbaikan selesai.'
+          ]
+        },
+        {
+          id: 'step-5',
+          step: 'Langkah 5',
+          title: 'Pencarian Suku Cadang & Tambah Part',
+          category: 'Sparepart',
+          icon: Sparkles,
+          summary: 'Mencari komponen suku cadang original dengan fitur pencarian suara.',
+          details: [
+            'Buka tab "Sparepart" di menu bawah aplikasi.',
+            'Gunakan kolom pencarian atau tombol mikrofon (Pencarian Suara) untuk mencari komponen (misal: "Kapasitor AC").',
+            'Tambahkan suku cadang langsung ke pesanan aktif Anda untuk disatukan dalam tagihan.'
+          ]
+        }
+      ];
+
+      const filteredTopics = HELP_TOPICS.filter(topic =>
+        topic.title.toLowerCase().includes(helpSearchQuery.toLowerCase()) ||
+        topic.summary.toLowerCase().includes(helpSearchQuery.toLowerCase()) ||
+        topic.category.toLowerCase().includes(helpSearchQuery.toLowerCase()) ||
+        topic.details.some(d => d.toLowerCase().includes(helpSearchQuery.toLowerCase()))
+      );
+
+      return (
+        <div className="p-4 space-y-5 animate-in slide-in-from-right-4 bg-[#F8F9FA] dark:bg-[#0B0F19] min-h-screen pt-4 pb-[120px] transition-colors">
+          <div className="flex items-center gap-3 mb-4">
+            <button onClick={() => setProfileStep('main')} className="p-2.5 bg-white dark:bg-slate-900 rounded-full shadow-sm text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 transition-all outline-none">
+              <ChevronLeft className="w-5 h-5"/>
+            </button>
+            <div>
+              <h2 className="text-[18px] font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-tight">Pusat Bantuan & Tutorial</h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Panduan langkah demi langkah (Onboarding) OMEANFIX</p>
+            </div>
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <Search className="w-4 h-4 text-slate-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Cari topik bantuan (mis: pemesanan, suara)..."
+              value={helpSearchQuery}
+              onChange={(e) => setHelpSearchQuery(e.target.value)}
+              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 pl-11 pr-10 py-3.5 rounded-2xl text-[13px] font-medium text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 shadow-sm transition-all"
+            />
+            {helpSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setHelpSearchQuery('')}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Help Topics List */}
+          <div className="space-y-3.5">
+            {filteredTopics.length === 0 ? (
+              <div className="py-16 text-center space-y-2 bg-white dark:bg-slate-900 rounded-[24px] border border-slate-100 dark:border-slate-800">
+                <HelpCircle className="w-12 h-12 text-slate-300 mx-auto animate-pulse" />
+                <h4 className="font-bold text-slate-700 dark:text-slate-200 text-sm">Topik tidak ditemukan</h4>
+                <p className="text-xs text-slate-400">Coba kata kunci lain atau periksa daftar panduan.</p>
+              </div>
+            ) : (
+              filteredTopics.map((topic) => {
+                const IconComp = topic.icon;
+                const isSelected = selectedHelpTopicId === topic.id;
+
+                return (
+                  <div 
+                    key={topic.id}
+                    onClick={() => setSelectedHelpTopicId(isSelected ? null : topic.id)}
+                    className={`p-4 rounded-[22px] border transition-all cursor-pointer outline-none ${
+                      isSelected 
+                        ? 'bg-blue-50/70 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 shadow-md ring-1 ring-blue-200' 
+                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-xs hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
+                          <IconComp className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase rounded-md tracking-wider">
+                              {topic.step}
+                            </span>
+                            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                              {topic.category}
+                            </span>
+                          </div>
+                          <h3 className="font-extrabold text-[14px] text-slate-900 dark:text-white tracking-tight">{topic.title}</h3>
+                          <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">{topic.summary}</p>
+                        </div>
+                      </div>
+                      <div className={`p-1.5 rounded-full text-slate-400 transition-transform ${isSelected ? 'rotate-90 text-blue-600' : ''}`}>
+                        <ChevronRight className="w-4 h-4" />
+                      </div>
+                    </div>
+
+                    {/* Expanded Details */}
+                    {isSelected && (
+                      <div className="mt-4 pt-3.5 border-t border-blue-200/50 dark:border-blue-900/40 space-y-2 animate-in fade-in duration-200">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-blue-800 dark:text-blue-300 mb-2">Panduan Detail:</p>
+                        {topic.details.map((det, idx) => (
+                          <div key={idx} className="flex items-start gap-2 text-[12px] text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                            <span>{det}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Contact Support Section */}
+          <div className="p-5 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 border border-emerald-100 dark:border-emerald-900/40 rounded-[24px] space-y-3">
+            <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-sm">
+              <ShieldCheck className="w-5 h-5 text-emerald-500" />
+              <span>Butuh Bantuan Langsung?</span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+              Jika Anda memiliki masalah khusus atau pertanyaan langsung mengenai pengerjaan teknisi, silakan hubungi tim CS kami via WhatsApp.
+            </p>
+            <a
+              href="https://wa.me/6281200000000?text=Halo%20Admin%20OMEANFIX,%20saya%20butuh%20bantuan%20terkait%20aplikasi."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-600/20 active:scale-95 transition-transform flex items-center justify-center gap-2"
+            >
+              Hubungi CS via WhatsApp
+            </a>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="p-4 space-y-6 animate-in fade-in bg-slate-50 dark:bg-[#0B0F19] min-h-screen pb-[120px] transition-colors">
         <div className="flex items-center gap-4 p-5 bg-white dark:bg-slate-900 rounded-[24px] shadow-sm border border-slate-100 dark:border-slate-800">
@@ -1633,12 +1834,12 @@ export default function App() {
             <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600" />
           </button>
 
-          <button onClick={() => alert('Diarahkan ke WhatsApp Admin OMEANFIX')} className="w-full flex items-center justify-between p-4 px-5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border-b border-slate-100 dark:border-slate-800/80 text-left outline-none active:bg-slate-100 dark:active:bg-slate-800">
+          <button onClick={() => setProfileStep('help_center')} className="w-full flex items-center justify-between p-4 px-5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border-b border-slate-100 dark:border-slate-800/80 text-left outline-none active:bg-slate-100 dark:active:bg-slate-800">
             <div className="flex items-center gap-3.5">
               <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-xl"><HelpCircle className="w-5 h-5" /></div>
               <div>
                 <span className="text-[14px] font-bold text-slate-800 dark:text-slate-100 block">Pusat Bantuan</span>
-                <span className="text-[11px] text-slate-400 dark:text-slate-400">Hubungi kami via WhatsApp</span>
+                <span className="text-[11px] text-slate-400 dark:text-slate-400">Tutorial & bantuan teknis langsung</span>
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600" />
@@ -1673,28 +1874,6 @@ export default function App() {
             <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 tracking-widest mt-1.5 uppercase">Cara Cepat, Solusi Tepat</p>
           </div>
           <div className="flex items-center gap-2">
-            <button 
-              onClick={(e) => { 
-                triggerRipple(e); 
-                toggleTheme(); 
-              }} 
-              className="ripple-btn relative p-2.5 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-600 dark:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-100 dark:border-slate-700 outline-none" 
-              title={isDark ? "Ganti ke Mode Terang" : "Ganti ke Mode Gelap"}
-              aria-label="Toggle Mode Gelap/Terang"
-            >
-              {isDark ? <Sun className="w-5 h-5 transition-transform duration-300" /> : <Moon className="w-5 h-5 transition-transform duration-300" />}
-            </button>
-            <button 
-              onClick={(e) => { 
-                triggerRipple(e); 
-                setIsHelpModalOpen(true); 
-              }} 
-              className="ripple-btn relative p-2.5 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-100 dark:border-slate-700 outline-none" 
-              title="Panduan & Bantuan Aplikasi"
-              aria-label="Panduan & Bantuan Aplikasi"
-            >
-              <HelpCircle className="w-5 h-5" />
-            </button>
             <button onClick={(e) => { triggerRipple(e); setIsPortalOpen(true); }} className="ripple-btn relative p-2.5 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-100 dark:border-slate-700 outline-none" title="Portal Admin">
               <Lock className="w-5 h-5" />
             </button>

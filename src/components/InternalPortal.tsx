@@ -5102,25 +5102,6 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <button 
-              onClick={toggleTheme} 
-              aria-label="Ganti Tema"
-              title={isDark ? "Ganti ke Mode Terang" : "Ganti ke Mode Gelap"}
-              className="p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-amber-400 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700 shadow-sm outline-none transition-all"
-            >
-              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
-            </button>
-            <button 
-              onClick={(e) => {
-                triggerRipple(e);
-                setIsHelpModalOpen(true);
-              }}
-              aria-label="Panduan & Bantuan"
-              title="Panduan & Bantuan Aplikasi"
-              className="p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700 shadow-sm outline-none transition-all"
-            >
-              <HelpCircle className="w-4 h-4" />
-            </button>
             <button onClick={fetchData} className={`p-2.5 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 rounded-full border border-blue-100/50 dark:border-blue-800/60 shadow-sm outline-none ${isRefreshing ? 'animate-spin' : 'hover:bg-blue-100 dark:hover:bg-blue-900/50'}`}>
               <RefreshCw className="w-4 h-4" />
             </button>
