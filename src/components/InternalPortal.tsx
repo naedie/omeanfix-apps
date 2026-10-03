@@ -195,7 +195,23 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
     finally { setIsRefreshing(false); }
   };
 
-  useEffect(() => { fetchData(); }, [activeModule]);
+  useEffect(() => { 
+    fetchData(); 
+
+    const channel = supabase
+      .channel('portal-realtime-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'financial_ledger' }, () => {
+        fetchData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeModule]);
 
   useEffect(() => {
     setOrderPage(0);
@@ -285,13 +301,21 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
   const handleConfirmStatus = async (orderId: string) => {
     const newStatus = pendingStatusUpdates[orderId];
     if (!newStatus) return;
-     try {
-       let updates: any = { status: newStatus };
-      if (newStatus.toLowerCase() === 'selesai') updates.payment_status = 'lunas';
-      await supabase.from('orders').update(updates).eq('id', orderId);
-       fetchData();
-       setPendingStatusUpdates(prev => { const ns = { ...prev }; delete ns[orderId]; return ns; });
-    } catch (err) { console.error(err); }
+    try {
+      const updatePayload: any = { status: newStatus };
+      if (newStatus === 'Selesai') {
+        updatePayload.payment_status = 'lunas';
+      } else if (newStatus === 'Menunggu Pembayaran') {
+        updatePayload.payment_status = 'belum_dibayar';
+      }
+      const { error } = await supabase.from('orders').update(updatePayload).eq('id', orderId);
+      if (error) throw error;
+      showToast(`Status pesanan berhasil diperbarui menjadi "${newStatus}"`, 'success');
+      fetchData();
+      setPendingStatusUpdates(prev => { const ns = { ...prev }; delete ns[orderId]; return ns; });
+    } catch (err: any) {
+      showToast('Gagal mengubah status: ' + (err.message || err), 'error');
+    }
   };
 
   const handleSendEstimasi = async (orderId: string, currentNote: string) => {
@@ -302,9 +326,10 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
       const newNote = cleanNote ? `${cleanNote} [ESTIMASI:${val}]` : `[ESTIMASI:${val}]`;
       const { error } = await supabase.from('orders').update({ note: newNote }).eq('id', orderId);
       if (error) throw error;
-      alert("Estimasi biaya berhasil diinfokan ke pelanggan!"); fetchData();
+      showToast("Estimasi biaya berhasil diinfokan ke pelanggan!", "success");
+      fetchData();
       setEstimasiInput(prev => { const ns = { ...prev }; delete ns[orderId]; return ns; });
-    } catch (err: any) { alert("Gagal menyimpan estimasi: " + err.message); }
+    } catch (err: any) { showToast("Gagal menyimpan estimasi: " + err.message, "error"); }
   };
 
   const handleSendInvoice = async (orderId: string, currentNote: string) => {
@@ -321,17 +346,36 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
         const invString = `[INVOICE:J=${jasa}|P=${part}|L=${layanan}|T=${total}|D=${desc}]`;
         const newNote = cleanNote ? `${cleanNote} ${invString}` : invString;
         
-        const { error } = await supabase.from('orders').update({ note: newNote, status: 'Menunggu Pembayaran' }).eq('id', orderId);
+        const { error } = await supabase.from('orders').update({ note: newNote, status: 'Menunggu Pembayaran', payment_status: 'belum_dibayar' }).eq('id', orderId);
         if (error) throw error;
-        alert("Tagihan/Invoice berhasil diterbitkan!"); fetchData();
+        showToast("Tagihan/Invoice berhasil diterbitkan!", "success"); 
+        fetchData();
         setInvoiceInputs(p => { const ns = {...p}; delete ns[orderId]; return ns; });
         setPendingStatusUpdates(p => { const ns = {...p}; delete ns[orderId]; return ns; });
-    } catch (err: any) { alert("Gagal kirim invoice: " + err.message); }
+    } catch (err: any) { showToast("Gagal kirim invoice: " + err.message, "error"); }
   };
 
-  const executeSettlement = async (ord: any, invData: any) => {
+  const executeSettlement = async (ord: any, invDataParam: any) => {
     setSettlingOrderId(ord.id);
     try {
+      const noteStr = ord.note || ord.complaint || ord.complaint_description || '';
+      let invData = invDataParam || {};
+
+      // Jika invData tidak punya key total/t/T, coba ekstrak dari note pesanan
+      if (!invData.t && !invData.total && !invData.T && !invData.j && !invData.jasa && !invData.J) {
+        const match = noteStr.match(/\[INVOICE:\s*([^\]]+)\]/);
+        if (match && match[1]) {
+          invData = {};
+          match[1].split('|').forEach((p: string) => {
+            const [k, v] = p.split('=');
+            if (k && v) {
+              const key = k.trim().toLowerCase();
+              invData[key] = key === 'd' ? v.trim() : Number(v.trim()) || 0;
+            }
+          });
+        }
+      }
+
       const { error: updateErr } = await supabase
         .from('orders')
         .update({ 
@@ -352,10 +396,10 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
         const payloads = [];
         const cName = ord.customer_name || 'Pelanggan';
 
-        const nominalJasa = Number(invData?.j || invData?.jasa || 0);
-        const nominalPart = Number(invData?.p || invData?.part || 0);
-        const nominalLayanan = Number(invData?.l || invData?.layanan || 0);
-        const totalInv = Number(invData?.t || invData?.total || 0);
+        const nominalJasa = Number(invData?.j || invData?.jasa || invData?.J || 0);
+        const nominalPart = Number(invData?.p || invData?.part || invData?.P || 0);
+        const nominalLayanan = Number(invData?.l || invData?.layanan || invData?.L || 0);
+        const totalInv = Number(invData?.t || invData?.total || invData?.T || (nominalJasa + nominalPart + nominalLayanan));
 
         if (nominalJasa > 0) {
           payloads.push({
@@ -1608,15 +1652,24 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
               const proofMatch = rawNote.match(/\[PAYMENT_PROOF:\s*([^\]]+)\]/);
               if (proofMatch && proofMatch[1]) paymentProofData = proofMatch[1];
 
-              let invoiceData = null;
+              let invoiceData: any = null;
               const invMatch = rawNote.match(/\[INVOICE:\s*([^\]]+)\]/);
               if (invMatch && invMatch[1]) {
                 const parts = invMatch[1].split('|');
                 let parsed: any = {};
                 parts.forEach((p: string) => {
                   const [k, v] = p.split('=');
-                  if (k && v) parsed[k.trim()] = v.trim();
+                  if (k && v) {
+                    const key = k.trim().toLowerCase();
+                    const val = v.trim();
+                    parsed[key] = key === 'd' ? val : Number(val) || 0;
+                  }
                 });
+                parsed.jasa = parsed.j || parsed.jasa || 0;
+                parsed.part = parsed.p || parsed.part || 0;
+                parsed.layanan = parsed.l || parsed.layanan || 0;
+                parsed.total = parsed.t || parsed.total || (parsed.jasa + parsed.part + parsed.layanan);
+                parsed.desc = parsed.d || parsed.desc || '-';
                 invoiceData = parsed;
               }
 
@@ -1880,7 +1933,12 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                       </div>
 
                       <div className="flex flex-wrap gap-2 pt-1">
-                        {activeStatus.toLowerCase().includes('pembayaran') && (
+                        {(ord.payment_status === 'lunas' || activeStatus.toLowerCase() === 'selesai') ? (
+                          <div className="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-extrabold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span>Pembayaran Terverifikasi & Lunas</span>
+                          </div>
+                        ) : (activeStatus.toLowerCase().includes('pembayaran') || paymentProofData || ord.payment_status === 'menunggu_verifikasi' || invoiceData) && activeStatus.toLowerCase() !== 'dibatalkan' ? (
                           <button
                             onClick={() => handleVerifyPaymentAndSettle(ord, invoiceData)}
                             disabled={settlingOrderId === ord.id}
@@ -1898,7 +1956,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                               </>
                             )}
                           </button>
-                        )}
+                        ) : null}
 
                         {invoiceData && (
                           <button

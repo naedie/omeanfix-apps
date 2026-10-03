@@ -4,7 +4,7 @@ import {
    Wind, Car, ShieldCheck, CheckCircle2, X, FileText, User, 
    Bell, Wrench, Package, Database, ArrowRight, LogOut, 
    ExternalLink, Sparkles, Search, Snowflake, Tv, Ticket, Home,
-  Truck, Zap, Smartphone, Award, Loader2, QrCode, History, Plus, Lock, Mail, Phone, Camera, XCircle, Calendar, Image as ImageIcon, MapPin
+  Truck, Zap, Smartphone, Award, Loader2, QrCode, History, Plus, Lock, Mail, Phone, Camera, XCircle, Calendar, Image as ImageIcon, MapPin, Clock, CreditCard
 } from 'lucide-react';
 import { supabase } from './supabase';
 import BookingModal from './components/BookingModal';
@@ -40,6 +40,13 @@ export default function App() {
   const [vouchers, setVouchers] = useState<any[]>([]); 
   const [claimedVouchers, setClaimedVouchers] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   const [selectedSpecialService, setSelectedSpecialService] = useState<any | null>(null);
   const [memStep, setMemStep] = useState<'detail' | 'form' | 'success'>('detail');
@@ -121,6 +128,26 @@ export default function App() {
 
   useEffect(() => {
     fetchInitialData();
+
+    // SUPABASE REALTIME LISTENER FOR INSTANT STATUS UPDATE
+    const channel = supabase
+      .channel('public-orders-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+        fetchInitialData();
+        if (payload.eventType === 'UPDATE' && payload.new) {
+          const st = (payload.new.status || payload.new.order_status || '').toLowerCase();
+          const pSt = (payload.new.payment_status || '').toLowerCase();
+          
+          if (pSt === 'lunas' || st === 'selesai') {
+            showToast('🎉 Pembayaran Terverifikasi! Transaksi Anda telah LUNAS.', 'success');
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleCategoryClick = (category: any) => {
@@ -592,19 +619,29 @@ export default function App() {
                     const newNote = cleanNote ? `${cleanNote} [PAYMENT_PROOF:${base64Str}]` : `[PAYMENT_PROOF:${base64Str}]`;
 
                     const { error } = await supabase.from('orders').update({
-                        note: newNote
+                        note: newNote,
+                        payment_status: 'menunggu_verifikasi'
                     }).eq('id', orderId);
                     
                     if (error) throw error;
                     
-                    alert('Bukti pembayaran berhasil diunggah! Menunggu verifikasi Admin.');
-                    fetchMyOrders();
+                    // REAL-TIME STATE UPDATE
+                    setMyOrders(prev => prev.map(o => {
+                      if (o.id === orderId) {
+                        return { ...o, note: newNote, payment_status: 'menunggu_verifikasi' };
+                      }
+                      return o;
+                    }));
+
+                    showToast('✅ Konfirmasi pembayaran terkirim! Status: Menunggu Verifikasi', 'info');
                     
                     setSelectedFiles(prev => {
                         const ns = {...prev};
                         delete ns[orderId];
                         return ns;
                     });
+
+                    fetchMyOrders();
                 } catch (err: any) {
                     alert('Gagal unggah: ' + err.message);
                 } finally {
@@ -815,21 +852,26 @@ export default function App() {
 
               let badgeClass = 'bg-slate-100 text-slate-700';
               let displayStatus = activeStatus.replace(/_/g, ' ');
+              let statusBadgeIcon = null;
 
-              if (['menunggu_konfirmasi', 'diterima', 'berjalan', 'ditangani', 'dijadwalkan', 'dalam_pengerjaan'].includes(sLower)) {
-                 badgeClass = 'bg-amber-100 text-amber-700';
-              } else if (['menunggu pembayaran'].includes(sLower)) {
-                 if (paymentProofData) {
-                    badgeClass = 'bg-emerald-100 text-emerald-700';
-                    displayStatus = 'Menunggu Verifikasi Admin';
-                 } else {
-                    badgeClass = 'bg-blue-100 text-blue-700';
-                    displayStatus = 'Menunggu Pembayaran';
-                 }
-              } else if (['selesai'].includes(sLower)) {
-                 badgeClass = 'bg-emerald-100 text-emerald-700';
+              if (pStatus === 'lunas' || sLower === 'selesai') {
+                 badgeClass = 'bg-emerald-100 text-emerald-800 border border-emerald-200 font-extrabold shadow-xs';
+                 displayStatus = 'Pembayaran Terverifikasi';
+                 statusBadgeIcon = <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />;
+              } else if (paymentProofData || pStatus === 'menunggu_verifikasi') {
+                 badgeClass = 'bg-amber-100 text-amber-800 border border-amber-200 font-extrabold animate-pulse shadow-xs';
+                 displayStatus = 'Menunggu Verifikasi';
+                 statusBadgeIcon = <Clock className="w-3.5 h-3.5 text-amber-600 animate-spin" />;
+              } else if (['menunggu pembayaran', 'menunggu_pembayaran'].includes(sLower)) {
+                 badgeClass = 'bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold';
+                 displayStatus = 'Menunggu Pembayaran';
+                 statusBadgeIcon = <CreditCard className="w-3.5 h-3.5 text-indigo-600" />;
+              } else if (['menunggu_konfirmasi', 'diterima', 'berjalan', 'ditangani', 'dijadwalkan', 'dalam_pengerjaan'].includes(sLower)) {
+                 badgeClass = 'bg-amber-100 text-amber-700 border border-amber-200';
+                 statusBadgeIcon = <Clock className="w-3.5 h-3.5 text-amber-500" />;
               } else if (['dibatalkan'].includes(sLower)) {
-                 badgeClass = 'bg-rose-100 text-rose-700';
+                 badgeClass = 'bg-rose-100 text-rose-700 border border-rose-200';
+                 statusBadgeIcon = <XCircle className="w-3.5 h-3.5 text-rose-500" />;
               }
 
               const canCancel = ['menunggu_konfirmasi', 'berjalan', 'diterima', 'dijadwalkan'].includes(sLower);
@@ -840,8 +882,9 @@ export default function App() {
                     <span className="px-2.5 py-1 bg-blue-50 text-blue-600 text-[9px] font-extrabold uppercase rounded-full">
                       #{ord.order_code || 'CRB-0000'}
                     </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${badgeClass}`}>
-                      {displayStatus}
+                    <span className={`text-[10px] px-2.5 py-1 rounded-full uppercase flex items-center gap-1.5 transition-all duration-300 ${badgeClass}`}>
+                      {statusBadgeIcon}
+                      <span>{displayStatus}</span>
                     </span>
                   </div>
 
@@ -915,12 +958,24 @@ export default function App() {
                        </div>
                        
                        {sLower === 'menunggu pembayaran' && (
-                           paymentProofData ? (
-                               <div className="flex justify-between items-center bg-emerald-50 border border-emerald-100 p-3 rounded-xl">
-                                   <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> Menunggu Verifikasi Admin</span>
-                                   <button onClick={() => setViewReceiptModal(paymentProofData)} className="text-[10px] font-bold text-emerald-700 bg-white px-3 py-1.5 rounded-lg border border-emerald-200 active:scale-95">Lihat Bukti</button>
+                           (paymentProofData || pStatus === 'menunggu_verifikasi') && pStatus !== 'lunas' ? (
+                               <div className="flex justify-between items-center bg-amber-50 border border-amber-200 p-3 rounded-xl animate-in fade-in">
+                                   <span className="text-[11px] font-bold text-amber-800 flex items-center gap-2">
+                                      <Clock className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
+                                      <span>Status: Menunggu Verifikasi Admin</span>
+                                   </span>
+                                   {paymentProofData && (
+                                      <button onClick={() => setViewReceiptModal(paymentProofData)} className="text-[10px] font-bold text-amber-800 bg-white px-3 py-1.5 rounded-lg border border-amber-200 hover:bg-amber-100 active:scale-95 transition-all">Lihat Bukti</button>
+                                   )}
                                </div>
-                           ) : pStatus === 'lunas' ? null : (
+                           ) : pStatus === 'lunas' ? (
+                               <div className="flex justify-between items-center bg-emerald-50 border border-emerald-200 p-3 rounded-xl animate-in zoom-in-95">
+                                   <span className="text-[11px] font-extrabold text-emerald-800 flex items-center gap-2">
+                                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                      <span>Pembayaran Terverifikasi (Lunas)</span>
+                                   </span>
+                               </div>
+                           ) : (
                                <div className="mt-2">
                                   <input type="file" accept="image/*" className="hidden" id={`upload-${ord.id}`} onChange={(e) => handleFileSelect(e, ord.id)} />
                                   
@@ -1524,6 +1579,29 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* FLOATING TOAST NOTIFICATION BANNER */}
+      {toast && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[10000] w-[90%] max-w-sm animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className={`p-4 rounded-2xl shadow-2xl border flex items-center gap-3 backdrop-blur-xl ${
+            toast.type === 'success' 
+              ? 'bg-emerald-950/90 text-emerald-200 border-emerald-500/30' 
+              : toast.type === 'info'
+              ? 'bg-amber-950/90 text-amber-200 border-amber-500/30'
+              : 'bg-rose-950/90 text-rose-200 border-rose-500/30'
+          }`}>
+            <div className={`p-2 rounded-xl shrink-0 ${
+              toast.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : toast.type === 'info' ? 'bg-amber-500/20 text-amber-400' : 'bg-rose-500/20 text-rose-400'
+            }`}>
+              {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : toast.type === 'info' ? <Clock className="w-5 h-5 animate-pulse" /> : <AlertCircle className="w-5 h-5" />}
+            </div>
+            <p className="text-[12px] font-bold leading-snug flex-1">{toast.message}</p>
+            <button onClick={() => setToast(null)} className="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <BookingModal isOpen={isBookingOpen} onClose={() => setIsBookingOpen(false)} selectedCategory={selectedCategory} />
     </div>
   );
