@@ -4,14 +4,13 @@ import {
   BarChart3, Settings, Trash2, Edit3, Box, Megaphone, 
   Loader2, Hash, Award, UserPlus, Users, Search, Mail, Phone, User,
   Wind, Car, ShieldCheck, Wrench, Snowflake, Truck, Zap, Smartphone, CheckCircle2, Ticket, QrCode, Printer, Plus, ChevronLeft, ChevronRight, Calendar, Camera, Home, MessageCircle, ChevronDown, ChevronUp, XCircle, Wallet, TrendingUp, TrendingDown, DollarSign, CreditCard,
-  Sun, Moon, Database, AlertTriangle, ShieldAlert, Download, FileSpreadsheet, Filter, HelpCircle, Sparkles
+  Sun, Moon, Database, AlertTriangle, ShieldAlert, Download, FileSpreadsheet, Filter, HelpCircle
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { supabase } from '../supabase';
 import { useTheme } from '../context/ThemeContext';
 import { triggerRipple } from '../utils/ripple';
 import HelpGuideModal from './HelpGuideModal';
-import VoiceAssistantModal from './VoiceAssistantModal';
 
 interface InternalPortalProps {
   onBackToCustomer: () => void;
@@ -146,7 +145,6 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
   // Banner & Voucher
   const [isBannerFormOpen, setIsBannerFormOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
-  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [bannerLabelFilter, setBannerLabelFilter] = useState('Semua');
   const [bannerBgUrl, setBannerBgUrl] = useState('');
   const [bannerLabel, setBannerLabel] = useState('');
@@ -5123,17 +5121,6 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
             >
               <HelpCircle className="w-4 h-4" />
             </button>
-            <button 
-              onClick={(e) => {
-                triggerRipple(e);
-                setIsVoiceModalOpen(true);
-              }}
-              aria-label="OMEANFIX Voice AI Assistant"
-              title="OMEANFIX Voice AI Assistant"
-              className="p-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full shadow-md shadow-blue-600/30 hover:opacity-90 transition-all outline-none animate-pulse"
-            >
-              <Sparkles className="w-4 h-4" />
-            </button>
             <button onClick={fetchData} className={`p-2.5 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 rounded-full border border-blue-100/50 dark:border-blue-800/60 shadow-sm outline-none ${isRefreshing ? 'animate-spin' : 'hover:bg-blue-100 dark:hover:bg-blue-900/50'}`}>
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -5271,7 +5258,6 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
         </div>
       )}
       <HelpGuideModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
-      <VoiceAssistantModal isOpen={isVoiceModalOpen} onClose={() => setIsVoiceModalOpen(false)} />
     </div>
   );
 }
