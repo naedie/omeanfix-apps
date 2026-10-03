@@ -4,7 +4,7 @@ import {
   Map, ArrowRight, ShieldCheck, Loader2, X
 } from 'lucide-react';
 
-// Menambahkan properti (props) agar komponen ini bisa menerima data pesanan asli dari App.tsx
+// Menambahkan properti (props) agar komponen ini bisa menerima data pesanan asli
 export default function TrackerMockup({ order, onClose }: { order: any, onClose: () => void }) {
   const [activeStep, setActiveStep] = useState(0); 
 
@@ -65,8 +65,8 @@ export default function TrackerMockup({ order, onClose }: { order: any, onClose:
   const orderCode = order.order_code || (order.id ? String(order.id).slice(0,8) : 'PESANAN');
 
   return (
-    // Background Overlay Gelap
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={onClose}>
+    // Background Overlay Gelap (z-index dinaikkan ke level tertinggi)
+    <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={onClose}>
       
       {/* Kontainer Pop-up */}
       <div className="w-full max-w-md bg-white rounded-t-[32px] flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-full duration-300 shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -77,14 +77,15 @@ export default function TrackerMockup({ order, onClose }: { order: any, onClose:
           <button onClick={onClose} className="absolute right-5 top-4 p-2 bg-slate-100 text-slate-500 rounded-full hover:bg-slate-200 outline-none active:scale-95"><X className="w-4 h-4" /></button>
         </div>
 
-        <div className="overflow-y-auto scrollbar-hide pb-8">
+        {/* AREA SCROLL */}
+        <div className="overflow-y-auto scrollbar-hide">
           {/* HEADER KARTU */}
           <div className="w-full px-6 pt-2 pb-6 relative">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-600 via-indigo-500 to-emerald-500"></div>
             <div className="flex justify-between items-start mb-2 mt-4">
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status Pesanan</p>
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">#{orderCode}</h2>
+                <h2 className="text-[19px] font-black text-slate-900 tracking-tight">#{orderCode}</h2>
               </div>
               <span className="px-3 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full text-[10px] font-extrabold uppercase tracking-wider">
                 Live Tracking
@@ -136,7 +137,7 @@ export default function TrackerMockup({ order, onClose }: { order: any, onClose:
                         {isActive && step.id === 'perjalanan' && (
                           <div className="mt-3 animate-in fade-in slide-in-from-top-2">
                             <a 
-                              href="https://maps.google.com" // Nanti kita bisa sisipkan parameter koordinat di sini
+                              href="https://maps.google.com" // Link peta sementara
                               target="_blank"
                               rel="noopener noreferrer"
                               className="w-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-700 font-bold py-2.5 px-4 rounded-xl text-[11px] flex items-center justify-between transition-colors shadow-sm"
@@ -163,6 +164,11 @@ export default function TrackerMockup({ order, onClose }: { order: any, onClose:
               </div>
             </div>
           </div>
+
+          {/* SPACER BLOCK - GAGASAN ANDA */}
+          {/* Ini akan memberikan ruang kosong di bawah modal sehingga tidak tertutup menu */}
+          <div className="h-32 w-full shrink-0 pointer-events-none"></div>
+
         </div>
       </div>
     </div>
