@@ -3,9 +3,11 @@ import {
   ArrowLeft, RefreshCw, Menu, X, FileText, Package, Layers, 
   BarChart3, Settings, Trash2, Edit3, Box, Megaphone, 
   Loader2, Hash, Award, UserPlus, Users, Search, Mail, Phone, User,
-  Wind, Car, ShieldCheck, Wrench, Snowflake, Truck, Zap, Smartphone, CheckCircle2, Ticket, QrCode, Printer, Plus, ChevronLeft, ChevronRight, Calendar, Camera, Home, MessageCircle, ChevronDown, ChevronUp, XCircle, Wallet, TrendingUp, TrendingDown, DollarSign, CreditCard 
+  Wind, Car, ShieldCheck, Wrench, Snowflake, Truck, Zap, Smartphone, CheckCircle2, Ticket, QrCode, Printer, Plus, ChevronLeft, ChevronRight, Calendar, Camera, Home, MessageCircle, ChevronDown, ChevronUp, XCircle, Wallet, TrendingUp, TrendingDown, DollarSign, CreditCard,
+  Sun, Moon
 } from 'lucide-react';
 import { supabase } from '../supabase';
+import { useTheme } from '../context/ThemeContext';
 import { triggerRipple } from '../utils/ripple';
 
 interface InternalPortalProps {
@@ -33,6 +35,7 @@ const MENU_SECTIONS = [
 ];
 
 export default function InternalPortal({ onBackToCustomer }: InternalPortalProps) {
+  const { theme, isDark, toggleTheme, setTheme } = useTheme();
   // 1. GLOBAL & NAVIGATION STATES
   const [activeModule, setActiveModule] = useState('dashboard');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -102,7 +105,17 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
 
   // Katalog Reguler & Khusus
   const [katalogTab, setKatalogTab] = useState<'kategori' | 'objek'>('kategori');
+  const [isCatFormOpen, setIsCatFormOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [categoryPage, setCategoryPage] = useState(0);
+  const categoriesPerPage = 5;
+
+  const [isUnitFormOpen, setIsUnitFormOpen] = useState(false);
+  const [unitSearch, setUnitSearch] = useState('');
   const [objekFilter, setObjekFilter] = useState('Semua');
+  const [unitPage, setUnitPage] = useState(0);
+  const [unitViewMode, setUnitViewMode] = useState<'list' | 'grup'>('list');
+  const unitsPerPage = 5;
   const [expandedObjKategori, setExpandedObjKategori] = useState<string[]>([]);
   
   const [categoryName, setCategoryName] = useState('');
@@ -843,21 +856,37 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
     }
   };
 
+  const cancelEditCategory = () => {
+    setEditingCategoryId(null);
+    setCategoryName('');
+    setCategoryIcon('');
+    setIsCatFormOpen(false);
+  };
+
+  const handleEditCategory = (cat: any) => {
+    setEditingCategoryId(cat.id);
+    setCategoryName(cat.name);
+    setCategoryIcon(cat.icon || '');
+    setIsCatFormOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleSaveCategory = async () => {
-    if (!categoryName) return;
+    if (!categoryName) {
+      showToastMsg("Nama kategori wajib diisi!", "error");
+      return;
+    }
     setIsSubmittingCat(true);
     try {
       if (editingCategoryId) {
-        const { error } = await supabase.from('service_categories').update({ name: categoryName, icon: categoryIcon }).eq('id', editingCategoryId);
+        const { error } = await supabase.from('service_categories').update({ name: categoryName.trim(), icon: categoryIcon.trim() }).eq('id', editingCategoryId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('service_categories').insert([{ name: categoryName, icon: categoryIcon }]);
+        const { error } = await supabase.from('service_categories').insert([{ name: categoryName.trim(), icon: categoryIcon.trim() }]);
         if (error) throw error;
       }
       showToastMsg("Kategori jasa berhasil disimpan!", "success");
-      setEditingCategoryId(null);
-      setCategoryName('');
-      setCategoryIcon('');
+      cancelEditCategory();
       fetchData();
     } catch (err: any) {
       showToastMsg("Gagal menyimpan kategori: " + err.message, "error");
@@ -866,11 +895,29 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
     }
   };
 
+  const cancelEditUnit = () => {
+    setEditingUnitId(null);
+    setUnitName('');
+    setSelectedCategoryId('');
+    setIsUnitFormOpen(false);
+  };
+
+  const handleEditUnit = (u: any) => {
+    setEditingUnitId(u.id);
+    setUnitName(u.name);
+    setSelectedCategoryId(String(u.category_id));
+    setIsUnitFormOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleSaveUnit = async () => {
-    if (!unitName || !selectedCategoryId) return;
+    if (!unitName || !selectedCategoryId) {
+      showToastMsg("Pilih kategori dan isi nama unit!", "error");
+      return;
+    }
     setIsSubmittingUnit(true);
     try {
-      const payload = { name: unitName, category_id: String(selectedCategoryId) };
+      const payload = { name: unitName.trim(), category_id: String(selectedCategoryId) };
       if (editingUnitId) {
         const { error } = await supabase.from('services').update(payload).eq('id', editingUnitId);
         if (error) throw error;
@@ -879,8 +926,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
         if (error) throw error;
       }
       showToastMsg("Unit/Objek berhasil disimpan!", "success");
-      setEditingUnitId(null);
-      setUnitName('');
+      cancelEditUnit();
       fetchData();
     } catch (err: any) {
       showToastMsg("Gagal menyimpan unit: " + err.message, "error");
@@ -1403,6 +1449,17 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                 });
               }
 
+              // Ekstraksi Voucher Promo yang Dipilih Pelanggan
+              const promoMatch = rawNote.match(/\[PROMO_APPLIED:\s*([^\]]+)\]/);
+              let appliedPromo: { code: string; title: string } | null = null;
+              if (promoMatch && promoMatch[1]) {
+                const parts = promoMatch[1].split('|');
+                appliedPromo = {
+                  code: parts[0]?.trim() || '',
+                  title: parts[1]?.trim() || ''
+                };
+              }
+
               // Extracting photo attachments natively
               let photoAttachments: string[] = [];
               const photoMatches = rawNote.matchAll(/\[FOTO:\s*([^\]]+)\]/g);
@@ -1417,6 +1474,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                 .replace(/\[ESTIMASI:[^\]]+\]/g, '')
                 .replace(/\[JADWAL:[^\]]+\]/g, '')
                 .replace(/\[DP:[^\]]+\]/g, '')
+                .replace(/\[PROMO_APPLIED:[^\]]+\]/g, '')
                 .replace(/\[FOTO:[^\]]+\]/g, '')
                 .replace(/\[FOTO_TERLAMPIR\]/gi, '')
                 .replace(/\[PELANGGAN MEMINTA TAMBAHAN PART:[^\]]+\]/g, '')
@@ -1478,6 +1536,13 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                         {extractedSchedule && (
                           <div className="flex items-center gap-1.5 text-indigo-700 font-bold bg-indigo-50 p-2 rounded-xl text-[11px] mt-2">
                             <Calendar className="w-3.5 h-3.5" /> Jadwal Reservasi: {extractedSchedule}
+                          </div>
+                        )}
+
+                        {appliedPromo && (
+                          <div className="flex items-center gap-1.5 text-teal-800 font-bold bg-teal-50 p-2 rounded-xl text-[11px] mt-2 border border-teal-100">
+                            <Ticket className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                            <span>Voucher Digunakan: <span className="font-mono font-black text-slate-800">{appliedPromo.code}</span> ({appliedPromo.title})</span>
                           </div>
                         )}
                         
@@ -3257,119 +3322,726 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
     );
   };
 
-  const renderKatalogJasa = () => (
-    <div className="animate-in fade-in pb-10 space-y-4">
-      <div className="flex p-1 bg-slate-200/80 rounded-xl mb-4">
-        <button onClick={() => setKatalogTab('kategori')} className={`flex-1 py-2 text-xs font-bold rounded-lg ${katalogTab === 'kategori' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Kategori Jasa</button>
-        <button onClick={() => setKatalogTab('objek')} className={`flex-1 py-2 text-xs font-bold rounded-lg ${katalogTab === 'objek' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Objek / Unit</button>
-      </div>
+  const renderKatalogJasa = () => {
+    // 1. KATEGORI JASA: Filter & Pagination (5 per halaman)
+    const filteredCategories = categories.filter(c => 
+      c.name.toLowerCase().includes(categorySearch.toLowerCase().trim())
+    );
+    const totalCatPages = Math.ceil(filteredCategories.length / categoriesPerPage) || 1;
+    const safeCatPage = Math.min(categoryPage, totalCatPages - 1);
+    const paginatedCategories = filteredCategories.slice(safeCatPage * categoriesPerPage, (safeCatPage + 1) * categoriesPerPage);
 
-      {katalogTab === 'kategori' && (
-        <div className={`bg-white p-6 rounded-[28px] border shadow-sm ${editingCategoryId ? 'border-amber-300' : 'border-slate-100'}`}>
-          <div className="flex items-center gap-3 mb-5">
-            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600"><Layers className="w-5 h-5" /></div>
-            <h3 className="font-extrabold text-slate-800 text-[15px]">{editingCategoryId ? 'Edit Kategori' : 'Tambah Kategori Baru'}</h3>
-          </div>
-          <div className="space-y-3.5 mb-6">
-            <input type="text" placeholder="Nama Kategori" value={categoryName} onChange={e => setCategoryName(e.target.value)} className="w-full bg-slate-50 border p-3 rounded-[16px] text-xs outline-none" />
-            <input type="text" placeholder="Nama Ikon (Opsional)" value={categoryIcon} onChange={e => setCategoryIcon(e.target.value)} className="w-full bg-slate-50 border p-3 rounded-[16px] text-xs outline-none" />
-          </div>
-          <div className="flex gap-2">
-            {editingCategoryId && <button onClick={() => {setEditingCategoryId(null); setCategoryName('');}} className="px-5 bg-slate-100 font-bold rounded-[16px] text-xs">Batal</button>}
-            <button onClick={handleSaveCategory} disabled={isSubmittingCat} className={`flex-1 py-3.5 font-bold text-white rounded-[16px] text-xs flex justify-center gap-2 ${editingCategoryId ? 'bg-amber-500' : 'bg-indigo-600'}`}>
-              {isSubmittingCat ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan Kategori'}
-            </button>
-          </div>
-          
-          <div className="mt-8 border-t border-slate-100 pt-6">
-            <h4 className="text-[10px] font-bold text-slate-400 mb-3 px-1">Kategori Tersimpan:</h4>
-            <div className="space-y-2">
-              {categories.map(cat => (
-                <div key={cat.id} className="p-3.5 rounded-[18px] border bg-slate-50 flex justify-between items-center">
-                  <span className="font-bold text-xs">{cat.name}</span>
-                  <div className="flex gap-1">
-                    <button onClick={() => { setEditingCategoryId(cat.id); setCategoryName(cat.name); setCategoryIcon(cat.icon||''); }} className="p-1.5 text-amber-600 bg-white rounded-lg"><Edit3 className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => del('service_categories', cat.id)} className="p-1.5 text-rose-600 bg-white rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>
+    // 2. OBJEK / UNIT: Filter & Pagination (5 per halaman)
+    const filteredUnits = serviceUnits.filter(u => {
+      const matchCat = objekFilter === 'Semua' || String(u.category_id) === String(objekFilter);
+      const matchSearch = u.name.toLowerCase().includes(unitSearch.toLowerCase().trim());
+      return matchCat && matchSearch;
+    });
+
+    // Grouping for accordion view
+    const groupedUnits: Record<string, any[]> = {};
+    filteredUnits.forEach(u => {
+      if (!groupedUnits[u.category_id]) groupedUnits[u.category_id] = [];
+      groupedUnits[u.category_id].push(u);
+    });
+    const groupedCategoryIds = Object.keys(groupedUnits);
+
+    const totalUnitPages = Math.ceil(
+      (unitViewMode === 'list' ? filteredUnits.length : groupedCategoryIds.length) / unitsPerPage
+    ) || 1;
+    const safeUnitPage = Math.min(unitPage, totalUnitPages - 1);
+
+    const paginatedUnits = filteredUnits.slice(safeUnitPage * unitsPerPage, (safeUnitPage + 1) * unitsPerPage);
+    const paginatedGroupIds = groupedCategoryIds.slice(safeUnitPage * unitsPerPage, (safeUnitPage + 1) * unitsPerPage);
+
+    return (
+      <div className="animate-in fade-in pb-10 space-y-4">
+        {/* TAB SWITCHER: KATEGORI JASA VS OBJEK / UNIT */}
+        <div className="flex p-1 bg-slate-200/80 rounded-2xl mb-2 shadow-inner">
+          <button 
+            onClick={() => setKatalogTab('kategori')} 
+            className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${
+              katalogTab === 'kategori' 
+                ? 'bg-white text-indigo-600 shadow-sm' 
+                : 'text-slate-600 hover:text-slate-800'
+            }`}
+          >
+            Kategori Jasa
+          </button>
+          <button 
+            onClick={() => setKatalogTab('objek')} 
+            className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${
+              katalogTab === 'objek' 
+                ? 'bg-white text-blue-600 shadow-sm' 
+                : 'text-slate-600 hover:text-slate-800'
+            }`}
+          >
+            Objek / Unit
+          </button>
+        </div>
+
+        {/* ===================== TAB 1: KATEGORI JASA ===================== */}
+        {katalogTab === 'kategori' && (
+          <div className="space-y-4 animate-in fade-in">
+            {/* TOMBOL TAMBAH JASA PALING ATAS SEBELUM DAFTAR KATEGORI */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-5 rounded-[24px] border border-slate-100 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600 shrink-0">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-[16px] tracking-tight">Kategori Jasa</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Kelola kelompok utama layanan servis reguler</p>
+                </div>
+              </div>
+
+              <button
+                onClick={(e) => {
+                  triggerRipple(e);
+                  if (isCatFormOpen) {
+                    cancelEditCategory();
+                  } else {
+                    setEditingCategoryId(null);
+                    setCategoryName('');
+                    setCategoryIcon('');
+                    setIsCatFormOpen(true);
+                  }
+                }}
+                className={`ripple-btn px-4 py-2.5 rounded-xl font-bold text-xs shadow-sm flex items-center gap-1.5 transition-all active:scale-95 shrink-0 ${
+                  isCatFormOpen
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20'
+                }`}
+              >
+                {isCatFormOpen ? (
+                  <>
+                    <X className="w-4 h-4" />
+                    <span>Tutup Formulir</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    <span>Tambah Jasa</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* FORMULIR HANYA TAMPIL SAAT DIMINTA (isCatFormOpen === true) */}
+            {isCatFormOpen && (
+              <div className={`bg-white p-5 sm:p-6 rounded-[28px] border shadow-sm space-y-4 animate-in fade-in slide-in-from-top-3 duration-300 ${editingCategoryId ? 'border-amber-300' : 'border-indigo-100'}`}>
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${editingCategoryId ? 'bg-amber-500' : 'bg-indigo-500'} animate-pulse`}></span>
+                    <h4 className="font-extrabold text-slate-800 text-[14px]">
+                      {editingCategoryId ? 'Edit Kategori Jasa' : 'Form Tambah Kategori Baru'}
+                    </h4>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={cancelEditCategory}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full transition-colors"
+                    title="Batal"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-3.5">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                      Nama Kategori (*Wajib)
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="Cth: Pendingin, Elektrik, Alat Berat, Gadget..." 
+                      value={categoryName} 
+                      onChange={e => setCategoryName(e.target.value)} 
+                      className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-xs font-bold outline-none focus:border-indigo-500 focus:bg-white transition-colors" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                      URL Ikon / Gambar (Opsional)
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="https://... atau biarkan kosong untuk ikon default" 
+                      value={categoryIcon} 
+                      onChange={e => setCategoryIcon(e.target.value)} 
+                      className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 focus:bg-white transition-colors" 
+                    />
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
-      {katalogTab === 'objek' && (
-        <div className={`bg-white p-6 rounded-[28px] border shadow-sm ${editingUnitId ? 'border-amber-300' : 'border-slate-100'}`}>
-          <div className="flex items-center gap-3 mb-5">
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600"><Box className="w-5 h-5" /></div>
-            <h3 className="font-extrabold text-slate-800 text-[15px]">{editingUnitId ? 'Edit Objek Unit' : 'Tambah Objek Baru'}</h3>
-          </div>
-          <div className="space-y-3.5 mb-6">
-            <select value={selectedCategoryId} onChange={e => setSelectedCategoryId(e.target.value)} className="w-full bg-slate-50 border p-3 rounded-[16px] text-xs font-bold outline-none">
-              <option value="">-- Pilih Kategori --</option>
-              {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-            </select>
-            <input type="text" placeholder="Nama Unit (Cth: AC Split)" value={unitName} onChange={e => setUnitName(e.target.value)} className="w-full bg-slate-50 border p-3 rounded-[16px] text-xs outline-none" />
-          </div>
-          <div className="flex gap-2">
-            {editingUnitId && <button onClick={() => {setEditingUnitId(null); setUnitName('');}} className="px-5 bg-slate-100 font-bold rounded-[16px] text-xs">Batal</button>}
-            <button onClick={handleSaveUnit} disabled={isSubmittingUnit} className={`flex-1 py-3.5 font-bold text-white rounded-[16px] text-xs flex justify-center gap-2 ${editingUnitId ? 'bg-amber-500' : 'bg-blue-600'}`}>
-              {isSubmittingUnit ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan Unit'}
-            </button>
-          </div>
+                <div className="flex gap-2 pt-2">
+                  <button 
+                    type="button" 
+                    onClick={cancelEditCategory} 
+                    className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={handleSaveCategory} 
+                    disabled={isSubmittingCat} 
+                    className={`ripple-btn flex-1 py-3 font-bold text-white rounded-xl text-xs flex justify-center items-center gap-2 shadow-md active:scale-95 transition-all ${
+                      editingCategoryId ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20'
+                    }`}
+                  >
+                    {isSubmittingCat ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>{editingCategoryId ? 'Perbarui Kategori' : 'Simpan Kategori'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
 
-          <div className="mt-8 border-t border-slate-100 pt-6">
-            <div className="flex overflow-x-auto no-scrollbar gap-2 mb-4 px-1 -mx-1">
-              <button onClick={() => setObjekFilter('Semua')} className={`flex-none px-4 py-1.5 rounded-full text-[11px] font-bold ${objekFilter === 'Semua' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>Semua</button>
-              {categories.map(cat => (
-                <button key={cat.id} onClick={() => setObjekFilter(cat.id)} className={`flex-none px-4 py-1.5 rounded-full text-[11px] font-bold ${objekFilter === cat.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>{cat.name}</button>
-              ))}
-            </div>
-            
-            <div className="space-y-3">
-              {(() => {
-                const filtered = serviceUnits.filter(u => objekFilter === 'Semua' || String(u.category_id) === objekFilter);
-                const grouped: Record<string, any[]> = {};
-                filtered.forEach(u => { if (!grouped[u.category_id]) grouped[u.category_id] = []; grouped[u.category_id].push(u); });
-                
-                return Object.keys(grouped).map(catId => {
-                  const cat = categories.find(c => String(c.id) === catId);
-                  const isExpanded = expandedObjKategori.includes(catId) || objekFilter === catId;
-                  return (
-                    <div key={catId} className="bg-white border rounded-[20px] shadow-sm overflow-hidden">
-                      <button onClick={() => {
-                        if (isExpanded && objekFilter !== catId) setExpandedObjKategori(prev => prev.filter(id => id !== catId));
-                        else setExpandedObjKategori(prev => [...prev, catId]);
-                      }} className="w-full flex items-center justify-between p-3.5 bg-slate-50 outline-none">
-                        <div className="text-left">
-                          <h5 className="text-[13px] font-bold text-slate-800">{cat?.name || 'Umum'}</h5>
-                          <span className="text-[10px] text-slate-500">{grouped[catId].length} Unit</span>
+            {/* DAFTAR KATEGORI JASA TERSIMPAN DENGAN FILTER & PAGINASI (5 PER HALAMAN) */}
+            <div className="bg-white p-5 sm:p-6 rounded-[28px] border border-slate-100 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <h4 className="text-[13px] font-extrabold text-slate-800 flex items-center gap-1.5">
+                    <span>Daftar Kategori Jasa</span>
+                    <span className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full border border-indigo-100">
+                      {filteredCategories.length} Kategori
+                    </span>
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-medium">Kategori layanan aktif pada aplikasi pelanggan</p>
+                </div>
+
+                {/* Filter Pencarian Kategori */}
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Cari kategori jasa..."
+                    value={categorySearch}
+                    onChange={e => {
+                      setCategorySearch(e.target.value);
+                      setCategoryPage(0);
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 pl-8.5 pr-8 py-2 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 focus:bg-white transition-colors"
+                  />
+                  {categorySearch && (
+                    <button
+                      onClick={() => {
+                        setCategorySearch('');
+                        setCategoryPage(0);
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* List Data Kategori */}
+              {filteredCategories.length === 0 ? (
+                <div className="text-center py-10 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200 p-6">
+                  <Layers className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                  <p className="text-slate-600 font-bold text-xs">Kategori tidak ditemukan</p>
+                  <p className="text-slate-400 text-[11px] mt-0.5">
+                    {categorySearch 
+                      ? `Tidak ada kategori yang cocok dengan "${categorySearch}".` 
+                      : 'Belum ada kategori tersimpan. Klik "+ Tambah Jasa" di atas untuk menambahkan.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {paginatedCategories.map(cat => {
+                    const unitsCount = serviceUnits.filter(u => String(u.category_id) === String(cat.id)).length;
+                    return (
+                      <div key={cat.id} className="p-3.5 sm:p-4 rounded-[20px] border border-slate-100 bg-slate-50/70 hover:bg-slate-50 flex justify-between items-center gap-3 transition-colors">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                            {cat.icon && (cat.icon.startsWith('http') || cat.icon.startsWith('data:')) ? (
+                              <img src={cat.icon} alt={cat.name} className="w-6 h-6 object-contain" />
+                            ) : (
+                              <Layers className="w-5 h-5" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h5 className="font-extrabold text-slate-800 text-[13px] truncate">{cat.name}</h5>
+                            <p className="text-[10px] text-slate-400 font-medium">{unitsCount} Objek / Unit terdaftar</p>
+                          </div>
                         </div>
-                        {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+
+                        <div className="flex gap-1.5 shrink-0">
+                          <button 
+                            onClick={() => handleEditCategory(cat)} 
+                            className="p-2 text-amber-600 bg-white hover:bg-amber-50 rounded-xl shadow-xs border border-slate-200/80 transition-colors"
+                            title="Edit Kategori"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (window.confirm(`Yakin ingin menghapus kategori "${cat.name}"? Unit terkait mungkin akan terpengaruh.`)) {
+                                del('service_categories', cat.id);
+                              }
+                            }} 
+                            className="p-2 text-rose-600 bg-white hover:bg-rose-50 rounded-xl shadow-xs border border-slate-200/80 transition-colors"
+                            title="Hapus Kategori"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* FITUR PAGINASI KATEGORI (SETELAH 5 DAFTAR DITAMPILKAN DI HALAMAN 1) */}
+              {filteredCategories.length > categoriesPerPage && (
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-3 border-t border-slate-100 text-xs">
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    Menampilkan {safeCatPage * categoriesPerPage + 1} - {Math.min((safeCatPage + 1) * categoriesPerPage, filteredCategories.length)} dari {filteredCategories.length} kategori
+                  </span>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setCategoryPage(p => Math.max(0, p - 1))}
+                      disabled={safeCatPage === 0}
+                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      title="Sebelumnya"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    {Array.from({ length: totalCatPages }).map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCategoryPage(idx)}
+                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
+                          safeCatPage === idx
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}
+                      >
+                        {idx + 1}
                       </button>
-                      {isExpanded && (
-                        <div className="p-3 bg-white space-y-2">
-                          {grouped[catId].map(u => (
-                            <div key={u.id} className="p-3 border rounded-xl flex justify-between items-center bg-slate-50">
-                              <h6 className="font-bold text-[12px]">{u.name}</h6>
-                              <div className="flex gap-1.5">
-                                <button onClick={() => { setEditingUnitId(u.id); setUnitName(u.name); setSelectedCategoryId(String(u.category_id)); }} className="p-2 text-amber-600 bg-white rounded-xl shadow-sm"><Edit3 className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => del('services', u.id)} className="p-2 text-rose-600 bg-white rounded-xl shadow-sm"><Trash2 className="w-3.5 h-3.5" /></button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                });
-              })()}
+                    ))}
+
+                    <button
+                      onClick={() => setCategoryPage(p => Math.min(totalCatPages - 1, p + 1))}
+                      disabled={safeCatPage >= totalCatPages - 1}
+                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      title="Selanjutnya"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
+        )}
+
+        {/* ===================== TAB 2: OBJEK / UNIT ===================== */}
+        {katalogTab === 'objek' && (
+          <div className="space-y-4 animate-in fade-in">
+            {/* TOMBOL TAMBAH OBJEK/UNIT PALING ATAS SEBELUM DAFTAR OBJEK/UNIT */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-5 rounded-[24px] border border-slate-100 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-600 shrink-0">
+                  <Box className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-[16px] tracking-tight">Objek / Unit Layanan</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Kelola daftar tipe & model unit yang dapat diservis</p>
+                </div>
+              </div>
+
+              <button
+                onClick={(e) => {
+                  triggerRipple(e);
+                  if (isUnitFormOpen) {
+                    cancelEditUnit();
+                  } else {
+                    setEditingUnitId(null);
+                    setUnitName('');
+                    setSelectedCategoryId('');
+                    setIsUnitFormOpen(true);
+                  }
+                }}
+                className={`ripple-btn px-4 py-2.5 rounded-xl font-bold text-xs shadow-sm flex items-center gap-1.5 transition-all active:scale-95 shrink-0 ${
+                  isUnitFormOpen
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20'
+                }`}
+              >
+                {isUnitFormOpen ? (
+                  <>
+                    <X className="w-4 h-4" />
+                    <span>Tutup Formulir</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    <span>Tambah Objek/Unit</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* FORMULIR HANYA TAMPIL SAAT DIMINTA (isUnitFormOpen === true) */}
+            {isUnitFormOpen && (
+              <div className={`bg-white p-5 sm:p-6 rounded-[28px] border shadow-sm space-y-4 animate-in fade-in slide-in-from-top-3 duration-300 ${editingUnitId ? 'border-amber-300' : 'border-blue-100'}`}>
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${editingUnitId ? 'bg-amber-500' : 'bg-blue-500'} animate-pulse`}></span>
+                    <h4 className="font-extrabold text-slate-800 text-[14px]">
+                      {editingUnitId ? 'Edit Objek Unit' : 'Form Tambah Objek Baru'}
+                    </h4>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={cancelEditUnit}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full transition-colors"
+                    title="Batal"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-3.5">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                      Pilih Kategori Induk (*Wajib)
+                    </label>
+                    <select 
+                      value={selectedCategoryId} 
+                      onChange={e => setSelectedCategoryId(e.target.value)} 
+                      className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors cursor-pointer"
+                    >
+                      <option value="">-- Pilih Kategori Jasa --</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                      Nama Unit / Objek (*Wajib)
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="Cth: AC Split 1/2 - 1 PK, Kulkas 2 Pintu, Mesin Cuci Front Load..." 
+                      value={unitName} 
+                      onChange={e => setUnitName(e.target.value)} 
+                      className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500 focus:bg-white transition-colors" 
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button 
+                    type="button" 
+                    onClick={cancelEditUnit} 
+                    className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={handleSaveUnit} 
+                    disabled={isSubmittingUnit} 
+                    className={`ripple-btn flex-1 py-3 font-bold text-white rounded-xl text-xs flex justify-center items-center gap-2 shadow-md active:scale-95 transition-all ${
+                      editingUnitId ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
+                    }`}
+                  >
+                    {isSubmittingUnit ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>{editingUnitId ? 'Perbarui Unit' : 'Simpan Unit'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* DAFTAR OBJEK / UNIT TERSIMPAN DENGAN FILTER & PAGINASI (5 PER HALAMAN) */}
+            <div className="bg-white p-5 sm:p-6 rounded-[28px] border border-slate-100 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <h4 className="text-[13px] font-extrabold text-slate-800 flex items-center gap-1.5">
+                    <span>Daftar Objek / Unit</span>
+                    <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-100">
+                      {filteredUnits.length} Unit
+                    </span>
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-medium">Unit yang dapat dipilih pelanggan saat pemesanan</p>
+                </div>
+
+                {/* Filter Pencarian & Mode Tampilan */}
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
+                  {/* Input Pencarian Unit */}
+                  <div className="relative flex-1 sm:w-56">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Cari objek / unit..."
+                      value={unitSearch}
+                      onChange={e => {
+                        setUnitSearch(e.target.value);
+                        setUnitPage(0);
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 pl-8.5 pr-8 py-2 rounded-xl text-xs font-medium outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                    />
+                    {unitSearch && (
+                      <button
+                        onClick={() => {
+                          setUnitSearch('');
+                          setUnitPage(0);
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Toggle Tampilan: Flat List vs Accordion Group */}
+                  <div className="flex bg-slate-100 p-0.5 rounded-xl shrink-0">
+                    <button
+                      onClick={() => { setUnitViewMode('list'); setUnitPage(0); }}
+                      className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+                        unitViewMode === 'list'
+                          ? 'bg-white text-blue-600 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                      title="Tampilan Daftar Unit"
+                    >
+                      Daftar Unit
+                    </button>
+                    <button
+                      onClick={() => { setUnitViewMode('grup'); setUnitPage(0); }}
+                      className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+                        unitViewMode === 'grup'
+                          ? 'bg-white text-blue-600 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                      title="Tampilan Grup Kategori"
+                    >
+                      Per Kategori
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filter Pills Kategori */}
+              <div className="flex overflow-x-auto no-scrollbar gap-1.5 pb-1 -mx-1 px-1">
+                <button
+                  onClick={() => { setObjekFilter('Semua'); setUnitPage(0); }}
+                  className={`flex-none px-3.5 py-1.5 rounded-xl text-[11px] font-bold transition-all ${
+                    objekFilter === 'Semua'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Semua ({serviceUnits.length})
+                </button>
+                {categories.map(cat => {
+                  const count = serviceUnits.filter(u => String(u.category_id) === String(cat.id)).length;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => { setObjekFilter(String(cat.id)); setUnitPage(0); }}
+                      className={`flex-none px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all ${
+                        objekFilter === String(cat.id)
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {cat.name} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Konten Daftar Objek/Unit */}
+              {filteredUnits.length === 0 ? (
+                <div className="text-center py-10 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200 p-6">
+                  <Box className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                  <p className="text-slate-600 font-bold text-xs">Objek / Unit tidak ditemukan</p>
+                  <p className="text-slate-400 text-[11px] mt-0.5">
+                    {unitSearch || objekFilter !== 'Semua'
+                      ? 'Tidak ada unit yang cocok dengan kriteria pencarian / filter kategori.'
+                      : 'Belum ada objek unit tersimpan. Klik "+ Tambah Objek/Unit" di atas untuk menambahkan.'}
+                  </p>
+                </div>
+              ) : unitViewMode === 'list' ? (
+                /* TAMPILAN DAFTAR UNIT (PAGINASI 5 PER HALAMAN) */
+                <div className="space-y-2.5">
+                  {paginatedUnits.map(u => {
+                    const parentCat = categories.find(c => String(c.id) === String(u.category_id));
+                    return (
+                      <div key={u.id} className="p-3.5 sm:p-4 rounded-[20px] border border-slate-100 bg-slate-50/70 hover:bg-slate-50 flex justify-between items-center gap-3 transition-colors">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                            <Box className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-100/70 text-blue-700 border border-blue-200/80">
+                                {parentCat?.name || 'Umum'}
+                              </span>
+                            </div>
+                            <h5 className="font-extrabold text-slate-800 text-[13px] truncate">{u.name}</h5>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-1.5 shrink-0">
+                          <button 
+                            onClick={() => handleEditUnit(u)} 
+                            className="p-2 text-amber-600 bg-white hover:bg-amber-50 rounded-xl shadow-xs border border-slate-200/80 transition-colors"
+                            title="Edit Unit"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (window.confirm(`Yakin ingin menghapus unit "${u.name}"?`)) {
+                                del('services', u.id);
+                              }
+                            }} 
+                            className="p-2 text-rose-600 bg-white hover:bg-rose-50 rounded-xl shadow-xs border border-slate-200/80 transition-colors"
+                            title="Hapus Unit"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* TAMPILAN GRUP KATEGORI (ACCORDION PAGINASI 5 PER HALAMAN) */
+                <div className="space-y-3">
+                  {paginatedGroupIds.map(catId => {
+                    const cat = categories.find(c => String(c.id) === String(catId));
+                    const items = groupedUnits[catId] || [];
+                    const isExpanded = expandedObjKategori.includes(catId) || (objekFilter !== 'Semua' && objekFilter === catId) || unitSearch.length > 0;
+
+                    return (
+                      <div key={catId} className="bg-white border border-slate-200 rounded-[20px] shadow-sm overflow-hidden transition-all">
+                        <button
+                          onClick={() => {
+                            if (isExpanded) {
+                              setExpandedObjKategori(prev => prev.filter(id => id !== catId));
+                            } else {
+                              setExpandedObjKategori(prev => [...prev, catId]);
+                            }
+                          }}
+                          className="w-full flex items-center justify-between p-4 bg-slate-50/80 hover:bg-slate-100/80 transition-colors outline-none"
+                        >
+                          <div className="flex items-center gap-2.5 text-left">
+                            <div className="w-8 h-8 rounded-lg bg-blue-100/60 text-blue-600 flex items-center justify-center font-bold">
+                              <Layers className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <h5 className="text-[13px] font-extrabold text-slate-800">{cat?.name || 'Kategori Lainnya'}</h5>
+                              <span className="text-[10px] text-slate-500 font-medium">{items.length} Objek / Unit</span>
+                            </div>
+                          </div>
+                          <div className="p-1 rounded-lg bg-white border border-slate-200 text-slate-500">
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                          </div>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="p-3 bg-white space-y-2 border-t border-slate-100 animate-in fade-in duration-200">
+                            {items.map(u => (
+                              <div key={u.id} className="p-3 border border-slate-100 rounded-xl flex justify-between items-center bg-slate-50/60 hover:bg-slate-50">
+                                <h6 className="font-bold text-[12px] text-slate-800 truncate pr-2">{u.name}</h6>
+                                <div className="flex gap-1.5 shrink-0">
+                                  <button 
+                                    onClick={() => handleEditUnit(u)} 
+                                    className="p-1.5 text-amber-600 bg-white hover:bg-amber-50 rounded-lg shadow-xs border border-slate-200/80"
+                                    title="Edit Unit"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      if (window.confirm(`Yakin ingin menghapus unit "${u.name}"?`)) {
+                                        del('services', u.id);
+                                      }
+                                    }} 
+                                    className="p-1.5 text-rose-600 bg-white hover:bg-rose-50 rounded-lg shadow-xs border border-slate-200/80"
+                                    title="Hapus Unit"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* FITUR PAGINASI OBJEK/UNIT (SETELAH 5 DAFTAR DITAMPILKAN DI HALAMAN 1) */}
+              {(unitViewMode === 'list' ? filteredUnits.length : groupedCategoryIds.length) > unitsPerPage && (
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-3 border-t border-slate-100 text-xs">
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    Menampilkan {safeUnitPage * unitsPerPage + 1} - {Math.min((safeUnitPage + 1) * unitsPerPage, unitViewMode === 'list' ? filteredUnits.length : groupedCategoryIds.length)} dari {unitViewMode === 'list' ? filteredUnits.length : groupedCategoryIds.length} {unitViewMode === 'list' ? 'unit' : 'kategori'}
+                  </span>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setUnitPage(p => Math.max(0, p - 1))}
+                      disabled={safeUnitPage === 0}
+                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      title="Sebelumnya"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    {Array.from({ length: totalUnitPages }).map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setUnitPage(idx)}
+                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
+                          safeUnitPage === idx
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}
+                      >
+                        {idx + 1}
+                      </button>
+                    ))}
+
+                    <button
+                      onClick={() => setUnitPage(p => Math.min(totalUnitPages - 1, p + 1))}
+                      disabled={safeUnitPage >= totalUnitPages - 1}
+                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      title="Selanjutnya"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderKatalogKhusus = () => (
     <div className="animate-in fade-in pb-10 space-y-4">
@@ -3452,30 +4124,42 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
   const currentModuleData = ADMIN_MODULES.find(m => m.id === activeModule) || ADMIN_MODULES[0];
 
   return (
-    <div className="max-w-md mx-auto bg-slate-50 h-[100dvh] w-full relative shadow-2xl overflow-hidden font-sans flex flex-col">
+    <div className="max-w-md mx-auto bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 h-[100dvh] w-full relative shadow-2xl overflow-hidden font-sans flex flex-col transition-colors duration-200">
       {/* HEADER UTAMA ADMIN */}
-      <header className="flex-none z-30 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)] pt-7 pb-4 px-5 relative">
+      <header className="flex-none z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_rgba(0,0,0,0.03)] pt-7 pb-4 px-5 relative transition-colors">
         <div className="flex justify-between items-center mb-1.5">
-          <button onClick={onBackToCustomer} className="p-2.5 bg-slate-50 text-slate-600 rounded-full hover:bg-slate-100 border border-slate-100 shadow-sm outline-none">
+          <button onClick={onBackToCustomer} className="p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700 shadow-sm outline-none transition-colors">
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <span className="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-[9px] font-extrabold tracking-widest uppercase rounded-full border border-indigo-100/50">
-            Portal Admin
-          </span>
-          <button onClick={fetchData} className={`p-2.5 bg-blue-50 text-blue-600 rounded-full border border-blue-100/50 shadow-sm outline-none ${isRefreshing ? 'animate-spin' : 'hover:bg-blue-100'}`}>
-            <RefreshCw className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-[9px] font-extrabold tracking-widest uppercase rounded-full border border-indigo-100/50 dark:border-indigo-800/60">
+              Portal Admin
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button 
+              onClick={toggleTheme} 
+              aria-label="Ganti Tema"
+              title={isDark ? "Ganti ke Mode Terang" : "Ganti ke Mode Gelap"}
+              className="p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-amber-400 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700 shadow-sm outline-none transition-all"
+            >
+              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
+            </button>
+            <button onClick={fetchData} className={`p-2.5 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 rounded-full border border-blue-100/50 dark:border-blue-800/60 shadow-sm outline-none ${isRefreshing ? 'animate-spin' : 'hover:bg-blue-100 dark:hover:bg-blue-900/50'}`}>
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
         <div className="mt-4 flex items-center justify-between px-1">
-          <h1 className="text-[22px] font-black text-slate-900 tracking-tight leading-none">{currentModuleData.label}</h1>
-          <button onClick={() => setIsMenuOpen(true)} className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-full hover:bg-slate-800 active:scale-95 shadow-md shadow-slate-900/20 outline-none">
+          <h1 className="text-[22px] font-black text-slate-900 dark:text-white tracking-tight leading-none">{currentModuleData.label}</h1>
+          <button onClick={() => setIsMenuOpen(true)} className="flex items-center gap-2 bg-slate-900 dark:bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-slate-800 dark:hover:bg-blue-700 active:scale-95 shadow-md shadow-slate-900/20 dark:shadow-blue-900/40 outline-none transition-all">
             <Menu className="w-4 h-4" /><span className="text-[12px] font-bold">Menu</span>
           </button>
         </div>
       </header>
 
       {/* CONTENT UTAMA SWITCHER */}
-      <main className="flex-1 overflow-y-auto no-scrollbar p-4 relative z-0">
+      <main className="flex-1 overflow-y-auto no-scrollbar p-4 relative z-0 bg-slate-50 dark:bg-[#0B0F19] transition-colors">
         <div key={activeModule} className="animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out fill-mode-both min-h-full">
           {activeModule === 'dashboard' ? renderDashboard() :
            activeModule === 'pesanan' ? renderPesananMasuk() :
@@ -3502,8 +4186,8 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
       
       {viewReceiptModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 transition-opacity" onClick={() => setViewReceiptModal(null)}>
-          <div className="bg-white p-2 rounded-[24px] max-w-sm w-full relative animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setViewReceiptModal(null)} className="absolute -top-3 -right-3 w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center border-2 border-white shadow-lg outline-none"><X className="w-4 h-4" /></button>
+          <div className="bg-white dark:bg-slate-900 p-2 rounded-[24px] max-w-sm w-full relative animate-in zoom-in-95 border border-slate-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setViewReceiptModal(null)} className="absolute -top-3 -right-3 w-8 h-8 bg-slate-900 dark:bg-slate-800 text-white rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-lg outline-none"><X className="w-4 h-4" /></button>
             <img src={viewReceiptModal} alt="Bukti" className="w-full rounded-[18px] object-contain" />
           </div>
         </div>
@@ -3529,16 +4213,16 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
       {/* MODAL: CONFIRM BOX */}
       {confirmModal && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 animate-in fade-in" onClick={() => setConfirmModal(null)}>
-          <div className="bg-white p-6 rounded-[28px] max-w-sm w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-[28px] max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3">
-              <div className={`p-3 rounded-2xl ${confirmModal.type === 'danger' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+              <div className={`p-3 rounded-2xl ${confirmModal.type === 'danger' ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400' : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400'}`}>
                 <CheckCircle2 className="w-6 h-6" />
               </div>
-              <h3 className="font-black text-slate-900 text-[16px] tracking-tight">{confirmModal.title}</h3>
+              <h3 className="font-black text-slate-900 dark:text-white text-[16px] tracking-tight">{confirmModal.title}</h3>
             </div>
-            <p className="text-[12px] text-slate-600 font-medium whitespace-pre-line leading-relaxed">{confirmModal.message}</p>
+            <p className="text-[12px] text-slate-600 dark:text-slate-300 font-medium whitespace-pre-line leading-relaxed">{confirmModal.message}</p>
             <div className="flex gap-2.5 pt-2">
-              <button onClick={() => setConfirmModal(null)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs active:scale-95 transition-all">
+              <button onClick={() => setConfirmModal(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs active:scale-95 transition-all">
                 Batal
               </button>
               <button 
@@ -3554,20 +4238,20 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
 
       {/* MODAL: MENU NAVIGASI SAMPING/BAWAH */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={() => setIsMenuOpen(false)}>
-          <div className="w-full max-w-md bg-white rounded-t-[32px] flex flex-col max-h-[85vh] animate-in slide-in-from-bottom-full duration-300 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="w-full flex justify-center pt-4 pb-2 bg-white relative">
-              <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
-              <button onClick={() => setIsMenuOpen(false)} className="absolute right-5 top-4 p-2 bg-slate-100 text-slate-500 rounded-full hover:bg-slate-200 outline-none"><X className="w-4 h-4" /></button>
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setIsMenuOpen(false)}>
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-[32px] flex flex-col max-h-[85vh] animate-in slide-in-from-bottom-full duration-300 shadow-2xl border-t border-slate-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+            <div className="w-full flex justify-center pt-4 pb-2 bg-white dark:bg-slate-900 relative rounded-t-[32px]">
+              <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
+              <button onClick={() => setIsMenuOpen(false)} className="absolute right-5 top-4 p-2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 outline-none"><X className="w-4 h-4" /></button>
             </div>
             <div className="px-6 pb-6 pt-2 overflow-y-auto no-scrollbar space-y-6">
               <div>
-                <h2 className="text-[20px] font-black text-slate-800 tracking-tight">Navigasi Admin</h2>
-                <p className="text-[11px] text-slate-500 font-medium">Pilih modul untuk mengelola OMEANFIX</p>
+                <h2 className="text-[20px] font-black text-slate-800 dark:text-white tracking-tight">Navigasi Admin</h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Pilih modul untuk mengelola OMEANFIX</p>
               </div>
               {MENU_SECTIONS.map((section, idx) => (
                 <div key={idx} className="space-y-2.5">
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1 mb-1">{section.title}</h3>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 pl-1 mb-1">{section.title}</h3>
                   <div className="space-y-2">
                     {section.items.map(itemId => {
                       const modul = ADMIN_MODULES.find(m => m.id === itemId);
@@ -3576,13 +4260,13 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                         <button
                           key={modul.id}
                           onClick={() => { setActiveModule(modul.id); setIsMenuOpen(false); }}
-                          className={`w-full flex items-center justify-between p-3.5 rounded-[20px] transition-all duration-200 outline-none border ${activeModule === modul.id ? 'bg-white border-slate-200 shadow-[0_2px_10px_rgba(0,0,0,0.04)] ring-1 ring-slate-100' : 'bg-transparent border-transparent hover:bg-slate-50'}`}
+                          className={`w-full flex items-center justify-between p-3.5 rounded-[20px] transition-all duration-200 outline-none border ${activeModule === modul.id ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-[0_2px_10px_rgba(0,0,0,0.04)] ring-1 ring-slate-100 dark:ring-slate-700' : 'bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
                         >
                           <div className="flex items-center gap-3.5">
-                            <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center shadow-sm ${activeModule === modul.id ? modul.bg : 'bg-slate-100'}`}>
-                              <modul.icon className={`w-5 h-5 ${activeModule === modul.id ? modul.color : 'text-slate-400'}`} />
+                            <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center shadow-sm ${activeModule === modul.id ? modul.bg : 'bg-slate-100 dark:bg-slate-800'}`}>
+                              <modul.icon className={`w-5 h-5 ${activeModule === modul.id ? modul.color : 'text-slate-400 dark:text-slate-500'}`} />
                             </div>
-                            <span className={`text-[14px] font-bold ${activeModule === modul.id ? 'text-slate-900' : 'text-slate-600'}`}>{modul.label}</span>
+                            <span className={`text-[14px] font-bold ${activeModule === modul.id ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400'}`}>{modul.label}</span>
                           </div>
                           {activeModule === modul.id && <div className="w-2 h-2 rounded-full bg-blue-600 mr-2 shadow-sm"></div>}
                         </button>

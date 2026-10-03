@@ -4,13 +4,15 @@ import {
    Wind, Car, ShieldCheck, CheckCircle2, X, FileText, User, 
    Bell, Wrench, Package, Database, ArrowRight, LogOut, 
    ExternalLink, Sparkles, Search, Snowflake, Tv, Ticket, Home,
-  Truck, Zap, Smartphone, Award, Loader2, QrCode, History, Plus, Lock, Mail, Phone, Camera, XCircle, Calendar, Image as ImageIcon, MapPin, Clock, CreditCard
+  Truck, Zap, Smartphone, Award, Loader2, QrCode, History, Plus, Lock, Mail, Phone, Camera, XCircle, Calendar, Image as ImageIcon, MapPin, Clock, CreditCard,
+  Sun, Moon
 } from 'lucide-react';
 import { supabase } from './supabase';
 import BookingModal from './components/BookingModal';
 import InternalPortal from './components/InternalPortal';
 import SparepartTab from './components/SparepartTab';
 import TrackerMockup from './components/TrackerMockup'; // <-- IMPORT TRACKER BARU
+import { useTheme } from './context/ThemeContext';
 import { triggerRipple } from './utils/ripple';
 import { 
   sendLocalPushNotification, 
@@ -31,6 +33,7 @@ const BANNERS_FALLBACK = [
 ];
 
 export default function App() {
+  const { theme, isDark, toggleTheme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<'beranda' | 'pesanan' | 'sparepart' | 'riwayat' | 'profil'>('beranda');
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
@@ -311,11 +314,11 @@ export default function App() {
   };
 
   const getVoucherTheme = (theme: string) => {
-    if (theme === 'rose') return { border: 'border-rose-200', bgIcon: 'bg-rose-50', textIcon: 'text-rose-500', textCat: 'text-rose-600' };
-    if (theme === 'amber') return { border: 'border-amber-200', bgIcon: 'bg-amber-50', textIcon: 'text-amber-500', textCat: 'text-amber-600' };
-    if (theme === 'indigo') return { border: 'border-indigo-200', bgIcon: 'bg-indigo-50', textIcon: 'text-indigo-500', textCat: 'text-indigo-600' };
-    if (theme === 'teal') return { border: 'border-teal-200', bgIcon: 'bg-teal-50', textIcon: 'text-teal-500', textCat: 'text-teal-600' };
-    return { border: 'border-slate-200', bgIcon: 'bg-slate-50', textIcon: 'text-slate-500', textCat: 'text-slate-600' };
+    if (theme === 'rose') return { border: 'border-rose-200 dark:border-rose-900/60', bgIcon: 'bg-rose-50 dark:bg-rose-950/60', textIcon: 'text-rose-500 dark:text-rose-400', textCat: 'text-rose-600 dark:text-rose-400' };
+    if (theme === 'amber') return { border: 'border-amber-200 dark:border-amber-900/60', bgIcon: 'bg-amber-50 dark:bg-amber-950/60', textIcon: 'text-amber-500 dark:text-amber-400', textCat: 'text-amber-600 dark:text-amber-400' };
+    if (theme === 'indigo') return { border: 'border-indigo-200 dark:border-indigo-900/60', bgIcon: 'bg-indigo-50 dark:bg-indigo-950/60', textIcon: 'text-indigo-500 dark:text-indigo-400', textCat: 'text-indigo-600 dark:text-indigo-400' };
+    if (theme === 'teal') return { border: 'border-teal-200 dark:border-teal-900/60', bgIcon: 'bg-teal-50 dark:bg-teal-950/60', textIcon: 'text-teal-500 dark:text-teal-400', textCat: 'text-teal-600 dark:text-teal-400' };
+    return { border: 'border-slate-200 dark:border-slate-800', bgIcon: 'bg-slate-50 dark:bg-slate-800', textIcon: 'text-slate-500 dark:text-slate-400', textCat: 'text-slate-600 dark:text-slate-400' };
   };
 
   const handleClaimVoucher = (voucher: any) => {
@@ -413,13 +416,13 @@ export default function App() {
     const displayedParts = filteredParts.slice(partCurrentPage * PARTS_PER_PAGE, (partCurrentPage + 1) * PARTS_PER_PAGE);
 
     return (
-      <div className="space-y-8 animate-in fade-in bg-[#F8F9FA] min-h-screen px-5 pt-2 pb-[120px]">
+      <div className="space-y-8 animate-in fade-in bg-[#F8F9FA] dark:bg-[#0B0F19] min-h-screen px-5 pt-2 pb-[120px] transition-colors">
         <div className="mt-1 relative">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-[16px] font-bold text-slate-800 tracking-tight">Kilas Info & Promo</h3>
+            <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-100 tracking-tight">Kilas Info & Promo</h3>
             <div className="flex gap-1.5 z-10">
-              <button onClick={prevBanner} className="p-1.5 bg-white shadow-sm border border-slate-100 text-slate-500 rounded-full hover:bg-slate-50 transition-colors outline-none active:scale-90"><ChevronLeft className="w-4 h-4" /></button>
-              <button onClick={nextBanner} className="p-1.5 bg-white shadow-sm border border-slate-100 text-slate-500 rounded-full hover:bg-slate-50 transition-colors outline-none active:scale-90"><ChevronRight className="w-4 h-4" /></button>
+              <button onClick={prevBanner} className="p-1.5 bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700 text-slate-500 dark:text-slate-300 rounded-full hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors outline-none active:scale-90"><ChevronLeft className="w-4 h-4" /></button>
+              <button onClick={nextBanner} className="p-1.5 bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700 text-slate-500 dark:text-slate-300 rounded-full hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors outline-none active:scale-90"><ChevronRight className="w-4 h-4" /></button>
             </div>
           </div>
           
@@ -448,16 +451,16 @@ export default function App() {
           </div>
           <div className="flex justify-center gap-1.5 mt-4">
             {displayBanners.map((_, idx) => (
-              <div key={idx} onClick={() => { if (bannerRef.current) { bannerRef.current.scrollTo({ left: idx * bannerRef.current.clientWidth, behavior: 'smooth' }); setCurrentSlide(idx); } }} className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${currentSlide === idx ? 'w-6 bg-blue-600' : 'w-1.5 bg-slate-300 hover:bg-slate-400'}`} />
+              <div key={idx} onClick={() => { if (bannerRef.current) { bannerRef.current.scrollTo({ left: idx * bannerRef.current.clientWidth, behavior: 'smooth' }); setCurrentSlide(idx); } }} className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${currentSlide === idx ? 'w-6 bg-blue-600' : 'w-1.5 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400'}`} />
             ))}
           </div>
         </div>
 
         <div className="min-h-[100px]">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-[16px] font-bold text-slate-800 tracking-tight">Kategori Layanan</h3>
+            <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-100 tracking-tight">Kategori Layanan</h3>
             {categories.length > ITEMS_PER_PAGE && (
-              <button onClick={handleNextCategoryPage} className="text-[12px] font-bold text-blue-600 cursor-pointer outline-none active:scale-95 transition-transform hover:text-blue-800 flex items-center gap-1">
+              <button onClick={handleNextCategoryPage} className="text-[12px] font-bold text-blue-600 dark:text-blue-400 cursor-pointer outline-none active:scale-95 transition-transform hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1">
                 Lihat Semua <ChevronRight className="w-3 h-3" />
               </button>
             )}
@@ -467,19 +470,19 @@ export default function App() {
             <div className="grid grid-cols-5 gap-2">
               {[1, 2, 3, 4, 5].map((i) => (
                 <div key={i} className="flex flex-col items-center gap-1.5 animate-pulse">
-                  <div className="w-[50px] h-[50px] bg-slate-200 rounded-[14px]"></div>
-                  <div className="w-10 h-2 bg-slate-200 rounded-md mt-1"></div>
+                  <div className="w-[50px] h-[50px] bg-slate-200 dark:bg-slate-800 rounded-[14px]"></div>
+                  <div className="w-10 h-2 bg-slate-200 dark:bg-slate-800 rounded-md mt-1"></div>
                 </div>
               ))}
             </div>
           ) : categories.length === 0 ? (
-            <div className="p-4 bg-white rounded-2xl text-center text-xs text-slate-500 border border-slate-100">Belum ada kategori layanan.</div>
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl text-center text-xs text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800">Belum ada kategori layanan.</div>
           ) : (
             <div className="grid grid-cols-5 gap-y-4 gap-x-2 animate-in fade-in slide-in-from-right-4 duration-300" key={catPage}>
               {paginatedCategories.map((cat) => (
                 <button key={cat.id} onClick={() => handleCategoryClick(cat)} className="flex flex-col items-center gap-1.5 transition-transform active:scale-90 outline-none">
                   <div className="w-[50px] h-[50px] flex items-center justify-center bg-transparent outline-none border-none">{renderCategoryIcon(cat.icon)}</div>
-                  <span className="text-[10px] font-semibold text-slate-700 text-center leading-tight line-clamp-1 mt-0.5">{cat.name}</span>
+                  <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200 text-center leading-tight line-clamp-1 mt-0.5">{cat.name}</span>
                 </button>
               ))}
             </div>
@@ -489,15 +492,15 @@ export default function App() {
         <div>
           <div className="flex justify-between items-end mb-4">
             <div>
-              <h3 className="text-[16px] font-bold text-slate-800 tracking-tight">Layanan Khusus</h3>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5">(Perawatan Rutin & Membership)</p>
+              <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-100 tracking-tight">Layanan Khusus</h3>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">(Perawatan Rutin & Membership)</p>
             </div>
-            <button onClick={handleScrollSpecialCards} className="text-[12px] font-bold text-blue-600 cursor-pointer mb-1 outline-none active:scale-95 transition-transform hover:text-blue-800 flex items-center gap-0.5">Lihat Semua <ChevronRight className="w-3.5 h-3.5" /></button>
+            <button onClick={handleScrollSpecialCards} className="text-[12px] font-bold text-blue-600 dark:text-blue-400 cursor-pointer mb-1 outline-none active:scale-95 transition-transform hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-0.5">Lihat Semua <ChevronRight className="w-3.5 h-3.5" /></button>
           </div>
           
           <div ref={specialScrollRef} className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-2 gap-4 -mx-5 px-5 scroll-smooth">
             {specialCatalogs.length === 0 ? (
-              <div className="p-4 bg-white rounded-2xl text-center text-xs text-slate-500 border border-slate-100 w-full">Belum ada layanan khusus dari admin.</div>
+              <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl text-center text-xs text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800 w-full">Belum ada layanan khusus dari admin.</div>
             ) : (
               specialCatalogs.map((service) => {
                 const theme = getGradientTheme(service.bg_class);
@@ -523,31 +526,31 @@ export default function App() {
 
         <div className="pt-2">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-[16px] font-bold text-slate-800 tracking-tight">Voucher & Promo</h3>
-            <button onClick={handleScrollVouchers} className="text-[12px] font-bold text-blue-600 cursor-pointer outline-none active:scale-95 transition-transform flex items-center gap-0.5">Lihat Semua <ChevronRight className="w-3.5 h-3.5" /></button>
+            <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-100 tracking-tight">Voucher & Promo</h3>
+            <button onClick={handleScrollVouchers} className="text-[12px] font-bold text-blue-600 dark:text-blue-400 cursor-pointer outline-none active:scale-95 transition-transform flex items-center gap-0.5">Lihat Semua <ChevronRight className="w-3.5 h-3.5" /></button>
           </div>
           
           <div ref={voucherScrollRef} className="flex overflow-x-auto snap-x scrollbar-hide gap-4 -mx-5 px-5 pb-2 scroll-smooth">
             {vouchers.length === 0 ? (
-               <div className="w-full text-center py-6 border border-slate-100 rounded-[24px] bg-white shadow-sm snap-center"><p className="text-[12px] font-medium text-slate-400">Belum ada promo aktif saat ini.</p></div>
+               <div className="w-full text-center py-6 border border-slate-100 dark:border-slate-800 rounded-[24px] bg-white dark:bg-slate-900 shadow-sm snap-center"><p className="text-[12px] font-medium text-slate-400">Belum ada promo aktif saat ini.</p></div>
             ) : (
               vouchers.map((v) => {
                 const theme = getVoucherTheme(v.theme_color);
                 const isClaimed = claimedVouchers.includes(v.id);
                 return (
-                  <div key={v.id} className={`snap-center shrink-0 w-[85%] min-w-[280px] bg-white border ${theme.border} rounded-[24px] p-4 flex items-center gap-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] relative overflow-hidden transition-colors`}>
-                    <div className={`absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-[#F8F9FA] rounded-full border-r ${theme.border} z-0`}></div>
-                    <div className={`absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-[#F8F9FA] rounded-full border-l ${theme.border} z-0`}></div>
+                  <div key={v.id} className={`snap-center shrink-0 w-[85%] min-w-[280px] bg-white dark:bg-slate-900 border ${theme.border} rounded-[24px] p-4 flex items-center gap-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] relative overflow-hidden transition-colors`}>
+                    <div className={`absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-[#F8F9FA] dark:bg-[#0B0F19] rounded-full border-r ${theme.border} z-0`}></div>
+                    <div className={`absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-[#F8F9FA] dark:bg-[#0B0F19] rounded-full border-l ${theme.border} z-0`}></div>
                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${theme.bgIcon} ${theme.textIcon} ml-1 z-10`}><Ticket className="w-6 h-6" /></div>
                     <div className="flex-1 min-w-0 z-10">
                       <p className={`text-[9px] font-bold uppercase tracking-widest mb-0.5 ${theme.textCat}`}>{v.category}</p>
-                      <h4 className="text-[14px] font-bold text-slate-800 truncate">{v.title}</h4>
-                      <p className="text-[9px] text-slate-400 mt-1 leading-tight line-clamp-2">{v.description}</p>
+                      <h4 className="text-[14px] font-bold text-slate-800 dark:text-slate-100 truncate">{v.title}</h4>
+                      <p className="text-[9px] text-slate-400 dark:text-slate-400 mt-1 leading-tight line-clamp-2">{v.description}</p>
                     </div>
                     <button 
                       onClick={(e) => { triggerRipple(e); handleClaimVoucher(v); }} 
                       disabled={isClaimed} 
-                      className={`ripple-btn px-4 py-2 rounded-full text-[11px] font-bold shrink-0 z-10 mr-1 outline-none transition-all ${isClaimed ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none border border-slate-200' : 'bg-slate-900 text-white shadow-md hover:bg-slate-800 active:scale-95'}`}
+                      className={`ripple-btn px-4 py-2 rounded-full text-[11px] font-bold shrink-0 z-10 mr-1 outline-none transition-all ${isClaimed ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-700' : 'bg-slate-900 dark:bg-blue-600 text-white shadow-md hover:bg-slate-800 dark:hover:bg-blue-500 active:scale-95'}`}
                     >
                       {isClaimed ? <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Diklaim</span> : 'Klaim'}
                     </button>
@@ -561,10 +564,10 @@ export default function App() {
         <div className="animate-in fade-in">
           <div className="flex justify-between items-end mb-3.5">
             <div>
-              <h3 className="text-[16px] font-bold text-slate-800 tracking-tight">Pusat Suku Cadang</h3>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5">Pesan part original & bergaransi</p>
+              <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-100 tracking-tight">Pusat Suku Cadang</h3>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">Pesan part original & bergaransi</p>
             </div>
-            <button onClick={() => setActiveTab('sparepart')} className="text-[12px] font-bold text-blue-600 cursor-pointer mb-1 outline-none active:scale-95 transition-transform flex items-center gap-0.5">Lihat Semua <ChevronRight className="w-3.5 h-3.5" /></button>
+            <button onClick={() => setActiveTab('sparepart')} className="text-[12px] font-bold text-blue-600 dark:text-blue-400 cursor-pointer mb-1 outline-none active:scale-95 transition-transform flex items-center gap-0.5">Lihat Semua <ChevronRight className="w-3.5 h-3.5" /></button>
           </div>
 
           <div className="relative mb-4">
@@ -576,17 +579,17 @@ export default function App() {
                placeholder="Cari spare part, unit motor/mobil, ac..."
                value={partSearchQuery}
                onChange={(e) => setPartSearchQuery(e.target.value)}
-               className="w-full bg-white border border-slate-200 pl-9 pr-4 py-3 rounded-[14px] text-[12px] font-medium outline-none focus:border-blue-500 transition-colors shadow-sm"
+               className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 pl-9 pr-4 py-3 rounded-[14px] text-[12px] font-medium outline-none focus:border-blue-500 transition-colors shadow-sm"
              />
           </div>
 
           {spareParts.length === 0 ? (
-            <div className="p-4 bg-white rounded-2xl text-center text-xs text-slate-500 border border-slate-100 shadow-sm">Belum ada suku cadang terdaftar.</div>
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl text-center text-xs text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800 shadow-sm">Belum ada suku cadang terdaftar.</div>
           ) : displayedParts.length === 0 ? (
-            <div className="p-8 bg-white rounded-[24px] text-center text-xs text-slate-500 border border-slate-100 shadow-sm flex flex-col items-center">
-               <Package className="w-10 h-10 text-slate-300 mb-2" />
-               <span className="font-bold text-slate-700">Suku cadang tidak ditemukan</span>
-               <span className="text-[10px] mt-1">Coba kata kunci lain atau lihat semua produk.</span>
+            <div className="p-8 bg-white dark:bg-slate-900 rounded-[24px] text-center text-xs text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col items-center">
+               <Package className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-2" />
+               <span className="font-bold text-slate-700 dark:text-slate-200">Suku cadang tidak ditemukan</span>
+               <span className="text-[10px] mt-1 text-slate-400">Coba kata kunci lain atau lihat semua produk.</span>
             </div>
           ) : (
             <div className="flex flex-col">
@@ -603,18 +606,18 @@ export default function App() {
                         setPreSelectedPart(part);
                         setActiveTab('sparepart');
                       }} 
-                       className="bg-white border border-slate-100 rounded-[24px] p-3.5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] group relative"
+                       className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[24px] p-3.5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-slate-300 dark:hover:border-slate-700 group relative"
                     >
-                      <div className="w-full aspect-square rounded-xl overflow-hidden mb-3 bg-slate-50 flex items-center justify-center border border-slate-50 relative p-2">
-                        <img src={part.image_url || 'https://cdn-icons-png.flaticon.com/128/683/683100.png'} alt={part.name} className="w-full h-full object-contain mix-blend-multiply transition-transform duration-300 group-hover:scale-110" />
+                      <div className="w-full aspect-square rounded-xl overflow-hidden mb-3 bg-slate-50 dark:bg-slate-800 flex items-center justify-center border border-slate-50 dark:border-slate-700/50 relative p-2">
+                        <img src={part.image_url || 'https://cdn-icons-png.flaticon.com/128/683/683100.png'} alt={part.name} className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal transition-transform duration-300 group-hover:scale-110" />
                       </div>
                       <div>
-                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[8px] font-extrabold uppercase rounded-md inline-block mb-1.5 truncate max-w-[80%]">
+                        <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-[8px] font-extrabold uppercase rounded-md inline-block mb-1.5 truncate max-w-[80%]">
                            {catName}
                         </span>
-                        <h4 className="text-[13px] font-bold text-slate-800 leading-snug line-clamp-2 min-h-[36px] pr-2">{part.name}</h4>
+                        <h4 className="text-[13px] font-bold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2 min-h-[36px] pr-2">{part.name}</h4>
                         <div className="flex items-center justify-between mt-1.5">
-                           <p className="text-[13.5px] font-black text-blue-600">Rp {part.price?.toLocaleString('id-ID')}</p>
+                           <p className="text-[13.5px] font-black text-blue-600 dark:text-blue-400">Rp {part.price?.toLocaleString('id-ID')}</p>
                         </div>
                       </div>
                       
@@ -631,17 +634,17 @@ export default function App() {
                   <button
                     onClick={() => setPartCurrentPage(p => Math.max(0, p - 1))}
                     disabled={partCurrentPage === 0}
-                    className="p-2 rounded-full bg-white border border-slate-200 text-slate-600 disabled:opacity-40 disabled:bg-slate-50 shadow-sm active:scale-95 transition-all hover:bg-slate-50"
+                    className="p-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-40 disabled:bg-slate-50 dark:disabled:bg-slate-900 shadow-sm active:scale-95 transition-all hover:bg-slate-50 dark:hover:bg-slate-700"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200/60 dark:border-slate-700/60">
                     Halaman {partCurrentPage + 1} dari {totalPartPages}
                   </span>
                   <button
                     onClick={() => setPartCurrentPage(p => Math.min(totalPartPages - 1, p + 1))}
                     disabled={partCurrentPage === totalPartPages - 1}
-                    className="p-2 rounded-full bg-white border border-slate-200 text-slate-600 disabled:opacity-40 disabled:bg-slate-50 shadow-sm active:scale-95 transition-all hover:bg-slate-50"
+                    className="p-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-40 disabled:bg-slate-50 dark:disabled:bg-slate-900 shadow-sm active:scale-95 transition-all hover:bg-slate-50 dark:hover:bg-slate-700"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -650,7 +653,6 @@ export default function App() {
             </div>
           )}
         </div>
-
       </div>
     );
   };
@@ -982,6 +984,17 @@ export default function App() {
                   rawNote = rawNote.replace(/\[FOTO_TERLAMPIR\]/g, '');
               }
 
+              let promoData: { code: string; title: string } | null = null;
+              const promoMatch = rawNote.match(/\[PROMO_APPLIED:\s*([^\]]+)\]/);
+              if (promoMatch && promoMatch[1]) {
+                  const parts = promoMatch[1].split('|');
+                  promoData = {
+                      code: parts[0]?.trim() || '',
+                      title: parts[1]?.trim() || ''
+                  };
+                  rawNote = rawNote.replace(/\[PROMO_APPLIED:[^\]]+\]/g, '');
+              }
+
               const sparePartRequests: string[] = [];
               const partRegex = /\[PELANGGAN MEMINTA TAMBAHAN PART:\s*([^\]]+)\]/g;
               let match;
@@ -1086,6 +1099,13 @@ export default function App() {
                           <div className="flex items-center gap-2 text-[11px] font-bold text-purple-700 bg-purple-50 px-3 py-2 rounded-xl border border-purple-100 shadow-xs">
                              <ImageIcon className="w-3.5 h-3.5 shrink-0 text-purple-500" />
                              <span>Foto Kerusakan Telah Dilampirkan</span>
+                          </div>
+                       )}
+
+                       {promoData && (
+                          <div className="flex items-center gap-2 text-[11px] font-bold text-teal-800 bg-teal-50 px-3 py-2 rounded-xl border border-teal-100 shadow-xs">
+                             <Ticket className="w-3.5 h-3.5 shrink-0 text-teal-600" />
+                             <span>Voucher Digunakan: <span className="font-mono font-black">{promoData.code}</span> ({promoData.title})</span>
                           </div>
                        )}
 
@@ -1445,47 +1465,47 @@ export default function App() {
 
     if (profileStep === 'edit_profile') {
       return (
-        <div className="p-4 space-y-5 animate-in slide-in-from-right-4 bg-slate-50 min-h-screen pt-4 pb-[120px]">
+        <div className="p-4 space-y-5 animate-in slide-in-from-right-4 bg-slate-50 dark:bg-[#0B0F19] min-h-screen pt-4 pb-[120px] transition-colors">
            <div className="flex items-center gap-3 mb-6">
-              <button onClick={() => setProfileStep('main')} className="p-2 bg-white rounded-full shadow-sm text-slate-600 border border-slate-100 hover:bg-slate-50 active:scale-95"><ChevronLeft className="w-5 h-5"/></button>
-              <h2 className="text-[18px] font-bold text-slate-800 tracking-tight">Edit Profil</h2>
+              <button onClick={() => setProfileStep('main')} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95"><ChevronLeft className="w-5 h-5"/></button>
+              <h2 className="text-[18px] font-bold text-slate-800 dark:text-slate-100 tracking-tight">Edit Profil</h2>
            </div>
            
            <form onSubmit={handleSaveProfile} className="space-y-4">
               
               <div className="flex flex-col items-center justify-center mb-6">
                  <div className="relative">
-                    <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 shadow-sm border-[3px] border-white overflow-hidden">
+                    <div className="w-24 h-24 bg-blue-50 dark:bg-blue-950/60 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-sm border-[3px] border-white dark:border-slate-800 overflow-hidden">
                        {profAvatar ? <img src={profAvatar} alt="Avatar" className="w-full h-full object-cover" /> : <User className="w-10 h-10" />}
                     </div>
-                    <label htmlFor="avatar-upload" className="absolute bottom-0 right-0 w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-md cursor-pointer hover:bg-slate-800 transition-colors border-2 border-white active:scale-95">
+                    <label htmlFor="avatar-upload" className="absolute bottom-0 right-0 w-8 h-8 bg-slate-900 dark:bg-blue-600 text-white rounded-full flex items-center justify-center shadow-md cursor-pointer hover:bg-slate-800 dark:hover:bg-blue-500 transition-colors border-2 border-white dark:border-slate-800 active:scale-95">
                        <Camera className="w-4 h-4" />
                     </label>
                     <input type="file" id="avatar-upload" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
                  </div>
-                 <p className="text-[11px] text-slate-500 font-medium mt-3">Ketuk ikon kamera untuk mengubah</p>
+                 <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-3">Ketuk ikon kamera untuk mengubah</p>
               </div>
 
-              <div className="bg-white p-5 rounded-[24px] border border-slate-100 shadow-sm space-y-4">
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5 ml-1">Nama Lengkap</label>
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Nama Lengkap</label>
                     <div className="relative">
                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><User className="w-4 h-4 text-slate-400" /></div>
-                       <input type="text" value={profName} onChange={(e) => setProfName(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 pl-11 pr-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors" />
+                       <input type="text" value={profName} onChange={(e) => setProfName(e.target.value)} required className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-11 pr-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-colors" />
                     </div>
                  </div>
                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5 ml-1">Nomor WhatsApp</label>
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Nomor WhatsApp</label>
                     <div className="relative">
                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Phone className="w-4 h-4 text-slate-400" /></div>
-                       <input type="tel" value={profPhone} onChange={(e) => setProfPhone(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 pl-11 pr-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors" />
+                       <input type="tel" value={profPhone} onChange={(e) => setProfPhone(e.target.value)} required className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-11 pr-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-colors" />
                     </div>
                  </div>
                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5 ml-1">Alamat Email</label>
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Alamat Email</label>
                     <div className="relative">
                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Mail className="w-4 h-4 text-slate-400" /></div>
-                       <input type="email" value={profEmail} onChange={(e) => setProfEmail(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 pl-11 pr-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors" />
+                       <input type="email" value={profEmail} onChange={(e) => setProfEmail(e.target.value)} required className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-11 pr-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-colors" />
                     </div>
                  </div>
               </div>
@@ -1500,39 +1520,39 @@ export default function App() {
 
     if (profileStep === 'edit_password') {
       return (
-        <div className="p-4 space-y-5 animate-in slide-in-from-right-4 bg-slate-50 min-h-screen pt-4 pb-[120px]">
+        <div className="p-4 space-y-5 animate-in slide-in-from-right-4 bg-slate-50 dark:bg-[#0B0F19] min-h-screen pt-4 pb-[120px] transition-colors">
            <div className="flex items-center gap-3 mb-6">
-              <button onClick={() => setProfileStep('main')} className="p-2 bg-white rounded-full shadow-sm text-slate-600 border border-slate-100 hover:bg-slate-50 active:scale-95"><ChevronLeft className="w-5 h-5"/></button>
-              <h2 className="text-[18px] font-bold text-slate-800 tracking-tight">Keamanan Akun</h2>
+              <button onClick={() => setProfileStep('main')} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95"><ChevronLeft className="w-5 h-5"/></button>
+              <h2 className="text-[18px] font-bold text-slate-800 dark:text-slate-100 tracking-tight">Keamanan Akun</h2>
            </div>
            
            <form onSubmit={handleSavePassword} className="space-y-4">
-              <div className="bg-white p-5 rounded-[24px] border border-slate-100 shadow-sm space-y-4">
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5 ml-1">Password Saat Ini</label>
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Password Saat Ini</label>
                     <div className="relative">
                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Lock className="w-4 h-4 text-slate-400" /></div>
-                       <input type="password" required placeholder="Masukkan password lama" className="w-full bg-slate-50 border border-slate-200 pl-11 pr-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors" />
+                       <input type="password" required placeholder="Masukkan password lama" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-11 pr-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-colors" />
                     </div>
                  </div>
-                 <div className="w-full border-b border-dashed border-slate-200 my-2"></div>
+                 <div className="w-full border-b border-dashed border-slate-200 dark:border-slate-800 my-2"></div>
                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5 ml-1">Password Baru</label>
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Password Baru</label>
                     <div className="relative">
                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><ShieldCheck className="w-4 h-4 text-slate-400" /></div>
-                       <input type="password" id="new-pwd" required placeholder="Minimal 6 karakter" className="w-full bg-slate-50 border border-slate-200 pl-11 pr-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors" />
+                       <input type="password" id="new-pwd" required placeholder="Minimal 6 karakter" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-11 pr-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-colors" />
                     </div>
                  </div>
                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5 ml-1">Konfirmasi Password Baru</label>
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Konfirmasi Password Baru</label>
                     <div className="relative">
                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><ShieldCheck className="w-4 h-4 text-slate-400" /></div>
-                       <input type="password" required placeholder="Ulangi password baru" className="w-full bg-slate-50 border border-slate-200 pl-11 pr-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors" />
+                       <input type="password" required placeholder="Ulangi password baru" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-11 pr-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-colors" />
                     </div>
                  </div>
               </div>
 
-              <button type="submit" disabled={isSavingProfile} className="w-full py-4 flex justify-center items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-[14px] shadow-lg shadow-slate-900/20 active:scale-95 transition-transform outline-none disabled:bg-slate-700">
+              <button type="submit" disabled={isSavingProfile} className="w-full py-4 flex justify-center items-center gap-2 bg-slate-900 dark:bg-blue-600 hover:bg-slate-800 dark:hover:bg-blue-500 text-white rounded-2xl font-bold text-[14px] shadow-lg shadow-slate-900/20 dark:shadow-blue-600/30 active:scale-95 transition-transform outline-none disabled:bg-slate-700">
                 {isSavingProfile ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Simpan Password Baru'}
               </button>
            </form>
@@ -1541,65 +1561,101 @@ export default function App() {
     }
 
     return (
-      <div className="p-4 space-y-6 animate-in fade-in bg-slate-50 min-h-screen pb-[120px]">
-        <div className="flex items-center gap-4 p-5 bg-white rounded-[24px] shadow-sm border border-slate-100">
-          <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 shrink-0 overflow-hidden border-2 border-white shadow-sm">
+      <div className="p-4 space-y-6 animate-in fade-in bg-slate-50 dark:bg-[#0B0F19] min-h-screen pb-[120px] transition-colors">
+        <div className="flex items-center gap-4 p-5 bg-white dark:bg-slate-900 rounded-[24px] shadow-sm border border-slate-100 dark:border-slate-800">
+          <div className="w-16 h-16 bg-blue-50 dark:bg-blue-950/60 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 overflow-hidden border-2 border-white dark:border-slate-800 shadow-sm">
              {profAvatar ? <img src={profAvatar} alt="Avatar" className="w-full h-full object-cover" /> : <User className="w-8 h-8" />}
           </div>
           <div className="min-w-0">
-            <h3 className="text-[17px] font-bold text-slate-800 tracking-tight truncate">{profName}</h3>
-            <p className="text-[12px] font-medium text-slate-500 mt-0.5 truncate">{profPhone}</p>
-            <p className="text-[11px] font-medium text-slate-400 truncate">{profEmail}</p>
+            <h3 className="text-[17px] font-bold text-slate-800 dark:text-slate-100 tracking-tight truncate">{profName}</h3>
+            <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 truncate">{profPhone}</p>
+            <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 truncate">{profEmail}</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-[24px] shadow-sm border border-slate-100 overflow-hidden">
-          <button onClick={() => setProfileStep('edit_profile')} className="w-full flex items-center justify-between p-4 px-5 hover:bg-slate-50 transition-colors border-b border-slate-100 text-left outline-none active:bg-slate-100">
+        <div className="bg-white dark:bg-slate-900 rounded-[24px] shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+          {/* TEMA / MODE GELAP & TERANG TOGGLE */}
+          <div className="p-4 px-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
             <div className="flex items-center gap-3.5">
-              <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl"><User className="w-5 h-5" /></div>
+              <div className="p-2.5 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-xl">
+                {isDark ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+              </div>
               <div>
-                <span className="text-[14px] font-bold text-slate-800 block">Informasi Akun</span>
-                <span className="text-[11px] text-slate-400">Ubah nama, email, foto, dan no WA</span>
+                <span className="text-[14px] font-bold text-slate-800 dark:text-slate-100 block">Mode Tampilan</span>
+                <span className="text-[11px] text-slate-400 dark:text-slate-400">{isDark ? 'Tema Gelap Aktif (Dark Mode)' : 'Tema Terang Aktif (Light Mode)'}</span>
               </div>
             </div>
-            <ChevronRight className="w-5 h-5 text-slate-300" />
+            
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-full border border-slate-200/80 dark:border-slate-700/80">
+              <button
+                type="button"
+                onClick={() => setTheme('light')}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 outline-none ${
+                  !isDark ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Sun className="w-3.5 h-3.5 text-amber-500" />
+                <span>Terang</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme('dark')}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 outline-none ${
+                  isDark ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Moon className="w-3.5 h-3.5 text-blue-400" />
+                <span>Gelap</span>
+              </button>
+            </div>
+          </div>
+
+          <button onClick={() => setProfileStep('edit_profile')} className="w-full flex items-center justify-between p-4 px-5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border-b border-slate-100 dark:border-slate-800/80 text-left outline-none active:bg-slate-100 dark:active:bg-slate-800">
+            <div className="flex items-center gap-3.5">
+              <div className="p-2.5 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-xl"><User className="w-5 h-5" /></div>
+              <div>
+                <span className="text-[14px] font-bold text-slate-800 dark:text-slate-100 block">Informasi Akun</span>
+                <span className="text-[11px] text-slate-400 dark:text-slate-400">Ubah nama, email, foto, dan no WA</span>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600" />
           </button>
           
-          <button onClick={() => setProfileStep('edit_password')} className="w-full flex items-center justify-between p-4 px-5 hover:bg-slate-50 transition-colors border-b border-slate-100 text-left outline-none active:bg-slate-100">
+          <button onClick={() => setProfileStep('edit_password')} className="w-full flex items-center justify-between p-4 px-5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border-b border-slate-100 dark:border-slate-800/80 text-left outline-none active:bg-slate-100 dark:active:bg-slate-800">
             <div className="flex items-center gap-3.5">
-              <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl"><ShieldCheck className="w-5 h-5" /></div>
+              <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-xl"><ShieldCheck className="w-5 h-5" /></div>
               <div>
-                <span className="text-[14px] font-bold text-slate-800 block">Keamanan</span>
-                <span className="text-[11px] text-slate-400">Perbarui kata sandi Anda</span>
+                <span className="text-[14px] font-bold text-slate-800 dark:text-slate-100 block">Keamanan</span>
+                <span className="text-[11px] text-slate-400 dark:text-slate-400">Perbarui kata sandi Anda</span>
               </div>
             </div>
-            <ChevronRight className="w-5 h-5 text-slate-300" />
+            <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600" />
           </button>
 
-          <button onClick={() => alert('Diarahkan ke WhatsApp Admin OMEANFIX')} className="w-full flex items-center justify-between p-4 px-5 hover:bg-slate-50 transition-colors border-b border-slate-100 text-left outline-none active:bg-slate-100">
+          <button onClick={() => alert('Diarahkan ke WhatsApp Admin OMEANFIX')} className="w-full flex items-center justify-between p-4 px-5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border-b border-slate-100 dark:border-slate-800/80 text-left outline-none active:bg-slate-100 dark:active:bg-slate-800">
             <div className="flex items-center gap-3.5">
-              <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl"><HelpCircle className="w-5 h-5" /></div>
+              <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-xl"><HelpCircle className="w-5 h-5" /></div>
               <div>
-                <span className="text-[14px] font-bold text-slate-800 block">Pusat Bantuan</span>
-                <span className="text-[11px] text-slate-400">Hubungi kami via WhatsApp</span>
+                <span className="text-[14px] font-bold text-slate-800 dark:text-slate-100 block">Pusat Bantuan</span>
+                <span className="text-[11px] text-slate-400 dark:text-slate-400">Hubungi kami via WhatsApp</span>
               </div>
             </div>
-            <ChevronRight className="w-5 h-5 text-slate-300" />
+            <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600" />
           </button>
 
-          <button onClick={() => alert('Sesi Anda telah diakhiri.')} className="w-full flex items-center justify-between p-4 px-5 hover:bg-rose-50 transition-colors text-left outline-none active:bg-rose-100 group">
+          <button onClick={() => alert('Sesi Anda telah diakhiri.')} className="w-full flex items-center justify-between p-4 px-5 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-left outline-none active:bg-rose-100 dark:active:bg-rose-950/60 group">
             <div className="flex items-center gap-3.5">
-              <div className="p-2.5 bg-rose-50 group-hover:bg-rose-100 text-rose-600 rounded-xl transition-colors"><LogOut className="w-5 h-5" /></div>
+              <div className="p-2.5 bg-rose-50 dark:bg-rose-950/50 group-hover:bg-rose-100 dark:group-hover:bg-rose-950 text-rose-600 dark:text-rose-400 rounded-xl transition-colors"><LogOut className="w-5 h-5" /></div>
               <div>
-                <span className="text-[14px] font-bold text-rose-600 block">Keluar Akun</span>
-                <span className="text-[11px] text-rose-400">Akhiri sesi Anda di perangkat ini</span>
+                <span className="text-[14px] font-bold text-rose-600 dark:text-rose-400 block">Keluar Akun</span>
+                <span className="text-[11px] text-rose-400 dark:text-rose-500">Akhiri sesi Anda di perangkat ini</span>
               </div>
             </div>
           </button>
         </div>
 
-        <div className="p-4 bg-blue-50/60 rounded-[20px] border border-blue-100 text-center">
-          <p className="text-xs text-blue-700 font-bold">OMEANFIX v2.4 &bull; Cirebon On-Demand Service</p>
+        <div className="p-4 bg-blue-50/60 dark:bg-blue-950/30 rounded-[20px] border border-blue-100 dark:border-blue-900/40 text-center">
+          <p className="text-xs text-blue-700 dark:text-blue-400 font-bold">OMEANFIX v2.4 &bull; Cirebon On-Demand Service</p>
         </div>
       </div>
     );
@@ -1608,15 +1664,26 @@ export default function App() {
   if (isPortalOpen) return <InternalPortal onBackToCustomer={() => setIsPortalOpen(false)} />;
 
   return (
-    <div className="max-w-md mx-auto bg-white h-[100dvh] w-full relative shadow-2xl overflow-hidden font-sans flex flex-col">
-      <header className="flex-none z-30 bg-white/95 backdrop-blur-xl border-b border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] pt-7 pb-4 px-5 relative">
+    <div className="max-w-md mx-auto bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 h-[100dvh] w-full relative shadow-2xl overflow-hidden font-sans flex flex-col transition-colors duration-200">
+      <header className="flex-none z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800 shadow-[0_4px_20px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.4)] pt-7 pb-4 px-5 relative transition-colors">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-[22px] font-black text-blue-600 tracking-tight leading-none">OMEANFIX</h1>
-            <p className="text-[9px] font-bold text-slate-400 tracking-widest mt-1.5 uppercase">Cara Cepat, Solusi Tepat</p>
+            <h1 className="text-[22px] font-black text-blue-600 dark:text-blue-400 tracking-tight leading-none">OMEANFIX</h1>
+            <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 tracking-widest mt-1.5 uppercase">Cara Cepat, Solusi Tepat</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={(e) => { triggerRipple(e); setIsPortalOpen(true); }} className="ripple-btn relative p-2.5 bg-slate-50 rounded-full text-slate-600 hover:bg-slate-100 transition-colors border border-slate-100 outline-none" title="Portal Admin">
+            <button 
+              onClick={(e) => { 
+                triggerRipple(e); 
+                toggleTheme(); 
+              }} 
+              className="ripple-btn relative p-2.5 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-600 dark:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-100 dark:border-slate-700 outline-none" 
+              title={isDark ? "Ganti ke Mode Terang" : "Ganti ke Mode Gelap"}
+              aria-label="Toggle Mode Gelap/Terang"
+            >
+              {isDark ? <Sun className="w-5 h-5 transition-transform duration-300" /> : <Moon className="w-5 h-5 transition-transform duration-300" />}
+            </button>
+            <button onClick={(e) => { triggerRipple(e); setIsPortalOpen(true); }} className="ripple-btn relative p-2.5 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-100 dark:border-slate-700 outline-none" title="Portal Admin">
               <Lock className="w-5 h-5" />
             </button>
             <button 
@@ -1625,21 +1692,21 @@ export default function App() {
                 setIsNotifCenterOpen(true);
                 setNotifHistory(prev => prev.map(n => ({ ...n, isRead: true })));
               }} 
-              className="ripple-btn relative p-2.5 bg-slate-50 rounded-full text-slate-600 hover:bg-slate-100 transition-colors border border-slate-100 outline-none"
+              className="ripple-btn relative p-2.5 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-100 dark:border-slate-700 outline-none"
               title="Pusat Notifikasi"
             >
               <Bell className="w-5 h-5" />
               {notifHistory.some(n => !n.isRead) ? (
-                <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white animate-pulse"></span>
+                <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900 animate-pulse"></span>
               ) : notifHistory.length > 0 ? (
-                <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border border-white"></span>
+                <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border border-white dark:border-slate-900"></span>
               ) : null}
             </button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto scrollbar-hide relative z-0 bg-[#F8F9FA]">
+      <main className="flex-1 overflow-y-auto scrollbar-hide relative z-0 bg-[#F8F9FA] dark:bg-[#0B0F19] transition-colors">
         <div key={activeTab} className="animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out fill-mode-both min-h-full">
           {activeTab === 'beranda' && <HomeContent />}
           {activeTab === 'pesanan' && <OrdersView isHistory={false} />}
@@ -1650,24 +1717,24 @@ export default function App() {
       </main>
 
       <nav className="fixed bottom-5 left-1/2 -translate-x-1/2 w-[95%] max-w-[420px] z-40">
-        <div className="bg-white border border-slate-100 rounded-[32px] p-1.5 flex justify-between items-center shadow-[0_8px_30px_rgba(0,0,0,0.08)] px-3">
-          <button onClick={() => setActiveTab('beranda')} className={`flex flex-col items-center gap-1 py-2 px-2 transition-all outline-none ${activeTab === 'beranda' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
+        <div className="glass-nav rounded-[32px] p-1.5 flex justify-between items-center px-3 border border-slate-200/80 dark:border-slate-800/80">
+          <button onClick={() => setActiveTab('beranda')} className={`flex flex-col items-center gap-1 py-2 px-2 transition-all outline-none ${activeTab === 'beranda' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>
             <Home className="w-5 h-5" strokeWidth={activeTab === 'beranda' ? 2.5 : 2} />
             <span className="text-[9px] font-bold tracking-tight">Beranda</span>
           </button>
-          <button onClick={() => setActiveTab('pesanan')} className={`flex flex-col items-center gap-1 py-2 px-2 transition-all outline-none ${activeTab === 'pesanan' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
+          <button onClick={() => setActiveTab('pesanan')} className={`flex flex-col items-center gap-1 py-2 px-2 transition-all outline-none ${activeTab === 'pesanan' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>
             <FileText className="w-5 h-5" strokeWidth={activeTab === 'pesanan' ? 2.5 : 2} />
             <span className="text-[9px] font-bold tracking-tight">Pesanan</span>
           </button>
-          <button onClick={() => setActiveTab('sparepart')} className={`flex flex-col items-center gap-1 py-2 px-2 transition-all outline-none ${activeTab === 'sparepart' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
+          <button onClick={() => setActiveTab('sparepart')} className={`flex flex-col items-center gap-1 py-2 px-2 transition-all outline-none ${activeTab === 'sparepart' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>
             <Package className="w-5 h-5" strokeWidth={activeTab === 'sparepart' ? 2.5 : 2} />
             <span className="text-[9px] font-bold tracking-tight">Spare Part</span>
           </button>
-          <button onClick={() => setActiveTab('riwayat')} className={`flex flex-col items-center gap-1 py-2 px-2 transition-all outline-none ${activeTab === 'riwayat' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
+          <button onClick={() => setActiveTab('riwayat')} className={`flex flex-col items-center gap-1 py-2 px-2 transition-all outline-none ${activeTab === 'riwayat' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>
             <History className="w-5 h-5" strokeWidth={activeTab === 'riwayat' ? 2.5 : 2} />
             <span className="text-[9px] font-bold tracking-tight">Riwayat</span>
           </button>
-          <button onClick={() => setActiveTab('profil')} className={`flex flex-col items-center gap-1 py-2 px-2 transition-all outline-none ${activeTab === 'profil' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
+          <button onClick={() => setActiveTab('profil')} className={`flex flex-col items-center gap-1 py-2 px-2 transition-all outline-none ${activeTab === 'profil' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>
             <User className="w-5 h-5" strokeWidth={activeTab === 'profil' ? 2.5 : 2} />
             <span className="text-[9px] font-bold tracking-tight">Profil</span>
           </button>
@@ -1675,29 +1742,29 @@ export default function App() {
       </nav>
 
       {selectedSpecialService && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-sm transition-opacity animate-in fade-in">
-          <div className="w-full max-w-md bg-white rounded-t-[32px] overflow-hidden flex flex-col max-h-[88vh] animate-in slide-in-from-bottom-full duration-300 ease-out shadow-2xl">
-            <div className="w-full flex justify-center pt-3 pb-2 bg-white relative z-10 shrink-0">
-              <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
-              <button onClick={() => { setSelectedSpecialService(null); setMemStep('detail'); }} className="absolute right-5 top-3 p-1.5 bg-slate-100 text-slate-500 rounded-full hover:bg-slate-200"><X className="w-4 h-4" /></button>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity animate-in fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-[32px] overflow-hidden flex flex-col max-h-[88vh] animate-in slide-in-from-bottom-full duration-300 ease-out shadow-2xl border-t border-slate-100 dark:border-slate-800">
+            <div className="w-full flex justify-center pt-3 pb-2 bg-white dark:bg-slate-900 relative z-10 shrink-0">
+              <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
+              <button onClick={() => { setSelectedSpecialService(null); setMemStep('detail'); }} className="absolute right-5 top-3 p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><X className="w-4 h-4" /></button>
             </div>
             <div className="flex-1 overflow-y-auto px-6 pb-6 pt-2 scrollbar-hide">
               {memStep === 'success' ? (
                 <div className="py-12 flex flex-col items-center justify-center text-center animate-in zoom-in-95">
-                  <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4 shadow-sm"><CheckCircle2 className="w-8 h-8" /></div>
-                  <h3 className="text-lg font-bold text-slate-800 mb-1">Pendaftaran Berhasil!</h3>
-                  <p className="text-xs text-slate-500 max-w-[260px]">Admin kami akan segera menghubungi Anda untuk jadwal aktivasi.</p>
+                  <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mb-4 shadow-sm"><CheckCircle2 className="w-8 h-8" /></div>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">Pendaftaran Berhasil!</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-[260px]">Admin kami akan segera menghubungi Anda untuk jadwal aktivasi.</p>
                 </div>
               ) : memStep === 'form' ? (
                 <form onSubmit={handleSubmitMembership} className="space-y-5 animate-in slide-in-from-right-4 duration-300">
                   <div className="mb-2">
-                    <span className="text-[10px] font-bold tracking-widest uppercase text-blue-600 block mb-0.5">Pendaftaran Membership</span>
-                    <h3 className="text-[18px] font-bold text-slate-800 tracking-tight leading-snug">{selectedSpecialService.title}</h3>
+                    <span className="text-[10px] font-bold tracking-widest uppercase text-blue-600 dark:text-blue-400 block mb-0.5">Pendaftaran Membership</span>
+                    <h3 className="text-[18px] font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-snug">{selectedSpecialService.title}</h3>
                   </div>
                   <div className="space-y-3.5">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">Durasi / Siklus</label>
-                      <select value={memDuration} onChange={(e) => setMemDuration(e.target.value)} className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-[16px] text-[13px] font-bold text-slate-700 outline-none">
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Durasi / Siklus</label>
+                      <select value={memDuration} onChange={(e) => setMemDuration(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3.5 rounded-[16px] text-[13px] font-bold text-slate-700 dark:text-slate-200 outline-none">
                         <option value="1_bulan">1 Bulan Uji Coba</option>
                         <option value="3_bulan">3 Bulan (Lebih Hemat)</option>
                         <option value="6_bulan">6 Bulan (Prioritas)</option>
@@ -1706,22 +1773,22 @@ export default function App() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">Jadwal Preferensi Kedatangan</label>
-                      <input type="text" required placeholder="Cth: Setiap hari Sabtu awal bulan jam 10 pagi" value={memSchedule} onChange={(e) => setMemSchedule(e.target.value)} className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-[16px] text-[13px] font-medium outline-none focus:bg-white" />
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Jadwal Preferensi Kedatangan</label>
+                      <input type="text" required placeholder="Cth: Setiap hari Sabtu awal bulan jam 10 pagi" value={memSchedule} onChange={(e) => setMemSchedule(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 dark:text-slate-200 outline-none focus:bg-white dark:focus:bg-slate-800" />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">Nama Lengkap</label>
-                        <input type="text" required placeholder="Nama Anda" value={memName} onChange={(e) => setMemName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-[16px] text-[13px] font-medium outline-none focus:bg-white" />
+                        <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Nama Lengkap</label>
+                        <input type="text" required placeholder="Nama Anda" value={memName} onChange={(e) => setMemName(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 dark:text-slate-200 outline-none focus:bg-white dark:focus:bg-slate-800" />
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">Nomor WhatsApp</label>
-                        <input type="tel" required placeholder="0812..." value={memPhone} onChange={(e) => setMemPhone(e.target.value)} className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-[16px] text-[13px] font-medium outline-none focus:bg-white" />
+                        <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Nomor WhatsApp</label>
+                        <input type="tel" required placeholder="0812..." value={memPhone} onChange={(e) => setMemPhone(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 dark:text-slate-200 outline-none focus:bg-white dark:focus:bg-slate-800" />
                       </div>
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">Kecamatan (Cirebon)</label>
-                      <select value={memKecamatan} onChange={(e) => setMemKecamatan(e.target.value)} className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 outline-none">
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Kecamatan (Cirebon)</label>
+                      <select value={memKecamatan} onChange={(e) => setMemKecamatan(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 dark:text-slate-200 outline-none">
                         <option value="Kota Cirebon - Kesambi">Kota Cirebon - Kesambi</option>
                         <option value="Kota Cirebon - Kejaksan">Kota Cirebon - Kejaksan</option>
                         <option value="Kota Cirebon - Harjamukti">Kota Cirebon - Harjamukti</option>
@@ -1730,15 +1797,15 @@ export default function App() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">Alamat & Catatan</label>
-                      <textarea required placeholder="Alamat lengkap dan catatan patokan rumah..." value={memAddress} onChange={(e) => setMemAddress(e.target.value)} rows={2} className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-[16px] text-[13px] font-medium outline-none resize-none focus:bg-white" />
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Alamat & Catatan</label>
+                      <textarea required placeholder="Alamat lengkap dan catatan patokan rumah..." value={memAddress} onChange={(e) => setMemAddress(e.target.value)} rows={2} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3.5 rounded-[16px] text-[13px] font-medium text-slate-700 dark:text-slate-200 outline-none resize-none focus:bg-white dark:focus:bg-slate-800" />
                     </div>
                   </div>
                   <div className="pt-2">
                     <button type="submit" disabled={isSubmittingMem} className="w-full py-4 rounded-2xl text-[14px] font-bold text-white shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 shadow-blue-600/30 outline-none">
                       {isSubmittingMem ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Kirim Pendaftaran</span>}
                     </button>
-                    <button type="button" onClick={() => setMemStep('detail')} className="w-full py-3 mt-2 rounded-2xl text-[12px] font-bold text-slate-500 hover:bg-slate-50 transition-colors outline-none">Kembali ke Detail</button>
+                    <button type="button" onClick={() => setMemStep('detail')} className="w-full py-3 mt-2 rounded-2xl text-[12px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors outline-none">Kembali ke Detail</button>
                   </div>
                 </form>
               ) : (
@@ -1755,12 +1822,12 @@ export default function App() {
                       </div>
                     );
                   })()}
-                  <p className="text-[14px] text-slate-600 leading-relaxed mb-6 font-medium">{selectedSpecialService.description}</p>
-                  <div className="bg-slate-50 border border-slate-100 rounded-[20px] p-5 mb-6">
-                    <h4 className="text-[13px] font-bold text-slate-800 mb-3 tracking-wide">Keuntungan Member:</h4>
+                  <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed mb-6 font-medium">{selectedSpecialService.description}</p>
+                  <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/60 rounded-[20px] p-5 mb-6">
+                    <h4 className="text-[13px] font-bold text-slate-800 dark:text-slate-100 mb-3 tracking-wide">Keuntungan Member:</h4>
                     <ul className="space-y-3">
                       {(selectedSpecialService.benefits || []).map((benefit: string, idx: number) => (
-                        <li key={idx} className="flex items-start gap-2.5 text-[13px] text-slate-700 font-medium">
+                        <li key={idx} className="flex items-start gap-2.5 text-[13px] text-slate-700 dark:text-slate-300 font-medium">
                           <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" /><span>{benefit}</span>
                         </li>
                       ))}
@@ -1768,7 +1835,7 @@ export default function App() {
                   </div>
                   <button 
                     onClick={(e) => { triggerRipple(e); setMemStep('form'); }} 
-                    className="ripple-btn w-full py-4 rounded-2xl text-[14px] font-bold text-white shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 shadow-slate-900/20 outline-none"
+                    className="ripple-btn w-full py-4 rounded-2xl text-[14px] font-bold text-white shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 bg-slate-900 dark:bg-blue-600 hover:bg-slate-800 dark:hover:bg-blue-500 shadow-slate-900/20 dark:shadow-blue-600/30 outline-none"
                   >
                     <span>{selectedSpecialService.cta_text || 'Daftar Sekarang'}</span><ArrowRight className="w-4 h-4" />
                   </button>
@@ -1852,29 +1919,29 @@ export default function App() {
       {/* PUSAT NOTIFIKASI MODAL (NOTIF CENTER) */}
       {isNotifCenterOpen && (
         <div className="fixed inset-0 z-[10001] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setIsNotifCenterOpen(false)}>
-          <div className="bg-white w-full max-w-md rounded-t-[32px] sm:rounded-[32px] p-6 pb-20 max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-full duration-300 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 shrink-0 sm:hidden"></div>
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-t-[32px] sm:rounded-[32px] p-6 pb-20 max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-full duration-300 shadow-2xl relative border-t sm:border border-slate-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-4 shrink-0 sm:hidden"></div>
             
-            <div className="flex justify-between items-center mb-4 shrink-0 pb-3 border-b border-slate-100">
+            <div className="flex justify-between items-center mb-4 shrink-0 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
                   <Bell className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-[16px] font-black text-slate-900 leading-tight">Pusat Notifikasi</h3>
-                  <p className="text-[11px] font-medium text-slate-500">Pembaruan status servis & teknisi</p>
+                  <h3 className="text-[16px] font-black text-slate-900 dark:text-slate-100 leading-tight">Pusat Notifikasi</h3>
+                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Pembaruan status servis & teknisi</p>
                 </div>
               </div>
-              <button onClick={() => setIsNotifCenterOpen(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 active:scale-90 transition-transform">
+              <button onClick={() => setIsNotifCenterOpen(false)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-90 transition-transform">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* WEB PUSH STATUS & PERMISSION BANNER */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-3.5 mb-4 shrink-0 flex items-center justify-between gap-3">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-100 dark:border-blue-900/50 rounded-2xl p-3.5 mb-4 shrink-0 flex items-center justify-between gap-3">
               <div className="flex-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 block mb-0.5">Notifikasi Browser</span>
-                <p className="text-[11px] font-medium text-slate-700">
+                <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 block mb-0.5">Notifikasi Browser</span>
+                <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
                   {notifPermission === 'granted' ? 'Push notification aktif di browser Anda.' : 'Aktifkan agar selalu dapat info terbaru dari teknisi.'}
                 </p>
               </div>
@@ -1894,7 +1961,7 @@ export default function App() {
                   Aktifkan
                 </button>
               ) : (
-                <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-extrabold rounded-full flex items-center gap-1 shrink-0">
+                <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-extrabold rounded-full flex items-center gap-1 shrink-0 border border-emerald-200 dark:border-emerald-800">
                   <CheckCircle2 className="w-3 h-3" /> Aktif
                 </span>
               )}
@@ -1902,7 +1969,7 @@ export default function App() {
 
             {/* ACTION SIMULASI TEST NOTIFIKASI */}
             <div className="flex items-center justify-between mb-3 px-1">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Riwayat Status</span>
+              <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Riwayat Status</span>
               <button
                 onClick={(e) => {
                   triggerRipple(e);
@@ -1914,7 +1981,7 @@ export default function App() {
                   );
                   setIsNotifCenterOpen(false);
                 }}
-                className="ripple-btn text-[11px] font-bold text-blue-600 hover:text-blue-800 underline active:scale-95 transition-transform"
+                className="ripple-btn text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline active:scale-95 transition-transform"
               >
                 Uji Notifikasi Lokal
               </button>
@@ -1923,33 +1990,33 @@ export default function App() {
             {/* LIST RIWAYAT NOTIFIKASI */}
             <div className="flex-1 overflow-y-auto scrollbar-hide space-y-2.5 pr-1">
               {notifHistory.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 bg-slate-50 rounded-2xl border border-slate-100">
-                  <Bell className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-xs font-bold text-slate-600">Belum Ada Notifikasi</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Pembaruan dari teknisi akan muncul di sini secara otomatis.</p>
+                <div className="py-12 text-center text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <Bell className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                  <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Belum Ada Notifikasi</p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Pembaruan dari teknisi akan muncul di sini secara otomatis.</p>
                 </div>
               ) : (
                 notifHistory.map((notif) => (
-                  <div key={notif.id} className="bg-slate-50 hover:bg-slate-100/80 p-3.5 rounded-2xl border border-slate-200/80 transition-colors">
+                  <div key={notif.id} className="bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100/80 dark:hover:bg-slate-800 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 transition-colors">
                     <div className="flex justify-between items-start mb-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-black uppercase bg-white border border-slate-200 px-2 py-0.5 rounded-md text-slate-600">
+                        <span className="text-[9px] font-black uppercase bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-md text-slate-600 dark:text-slate-300">
                           #{notif.orderCode}
                         </span>
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase ${
-                          notif.statusType === 'selesai' ? 'bg-emerald-100 text-emerald-800' :
-                          notif.statusType === 'pembayaran' ? 'bg-purple-100 text-purple-800' :
-                          notif.statusType === 'jadwal' ? 'bg-indigo-100 text-indigo-800' :
-                          notif.statusType === 'proses' ? 'bg-amber-100 text-amber-800' :
-                          'bg-blue-100 text-blue-800'
+                          notif.statusType === 'selesai' ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' :
+                          notif.statusType === 'pembayaran' ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800' :
+                          notif.statusType === 'jadwal' ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800' :
+                          notif.statusType === 'proses' ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800' :
+                          'bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
                         }`}>
                           {notif.statusType}
                         </span>
                       </div>
-                      <span className="text-[9px] text-slate-400 font-medium">{notif.timestamp}</span>
+                      <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">{notif.timestamp}</span>
                     </div>
-                    <h4 className="text-[12px] font-bold text-slate-800">{notif.title}</h4>
-                    <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">{notif.message}</p>
+                    <h4 className="text-[12px] font-bold text-slate-800 dark:text-slate-100">{notif.title}</h4>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">{notif.message}</p>
                   </div>
                 ))
               )}
@@ -1961,7 +2028,7 @@ export default function App() {
                   setNotifHistory([]);
                   sessionStorage.removeItem('omeanfix_notifs');
                 }}
-                className="mt-3 py-2 text-center text-[11px] font-bold text-rose-500 hover:text-rose-700 w-full"
+                className="mt-3 py-2 text-center text-[11px] font-bold text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 w-full"
               >
                 Hapus Semua Riwayat Notifikasi
               </button>

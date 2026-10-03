@@ -139,9 +139,9 @@ export default function SparepartTab({ preSelectedPart, onClearPreSelectedPart }
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 animate-in fade-in">
+    <div className="flex flex-col h-full bg-slate-50 dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 animate-in fade-in transition-colors">
       
-      <div className="bg-white px-5 pt-4 pb-4 border-b border-slate-100 shadow-sm z-10 sticky top-0">
+      <div className="bg-white dark:bg-slate-900 px-5 pt-4 pb-4 border-b border-slate-100 dark:border-slate-800 shadow-sm z-10 sticky top-0 transition-colors">
         <div className="relative mb-4">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <Search className="w-4 h-4 text-slate-400" />
@@ -151,7 +151,7 @@ export default function SparepartTab({ preSelectedPart, onClearPreSelectedPart }
             placeholder="Cari sparepart..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 pl-11 pr-4 py-3.5 rounded-2xl text-[13px] font-medium text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all placeholder:text-slate-400"
+            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-11 pr-4 py-3.5 rounded-2xl text-[13px] font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
           />
         </div>
 
@@ -163,7 +163,7 @@ export default function SparepartTab({ preSelectedPart, onClearPreSelectedPart }
               className={`flex-none px-5 py-2.5 rounded-full text-[12px] font-bold transition-all active:scale-95 ${
                 selectedCategory === cat.id
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20 border border-blue-600'
-                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700'
+                  : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
               }`}
             >
               {cat.name}
@@ -177,11 +177,11 @@ export default function SparepartTab({ preSelectedPart, onClearPreSelectedPart }
           <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
         ) : filteredParts.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center mt-20 px-6">
-            <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mb-6 shadow-inner">
-              <PackageX className="w-10 h-10 text-slate-300" />
+            <div className="w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 shadow-inner">
+              <PackageX className="w-10 h-10 text-slate-300 dark:text-slate-600" />
             </div>
-            <h3 className="text-[18px] font-bold text-slate-800 mb-2 tracking-tight">Tidak Ditemukan</h3>
-            <p className="text-[13px] font-medium text-slate-500 leading-relaxed">
+            <h3 className="text-[18px] font-bold text-slate-800 dark:text-slate-100 mb-2 tracking-tight">Tidak Ditemukan</h3>
+            <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
               Suku cadang yang Anda cari kosong atau belum ditambahkan oleh Admin.
             </p>
           </div>
@@ -193,31 +193,31 @@ export default function SparepartTab({ preSelectedPart, onClearPreSelectedPart }
                 const unitName = parentUnit ? parentUnit.name : 'Umum';
 
                 return (
-                  <div key={part.id} onClick={() => handleOpenPartDetail(part)} className="bg-white rounded-[24px] overflow-hidden border border-slate-100 shadow-[0_2px_15px_rgba(0,0,0,0.03)] flex flex-col group hover:shadow-md transition-all active:scale-95 cursor-pointer">
-                    <div className="w-full aspect-square bg-slate-50 relative p-4 flex items-center justify-center pointer-events-none">
+                  <div key={part.id} onClick={() => handleOpenPartDetail(part)} className="bg-white dark:bg-slate-900 rounded-[24px] overflow-hidden border border-slate-100 dark:border-slate-800 shadow-[0_2px_15px_rgba(0,0,0,0.03)] flex flex-col group hover:shadow-md transition-all active:scale-95 cursor-pointer">
+                    <div className="w-full aspect-square bg-slate-50 dark:bg-slate-800/60 relative p-4 flex items-center justify-center pointer-events-none">
                       {part.stock < 5 && (
-                        <span className="absolute top-3 left-3 px-2 py-1 bg-rose-100 text-rose-600 text-[8px] font-bold uppercase tracking-wider rounded-md z-10">Sisa {part.stock}</span>
+                        <span className="absolute top-3 left-3 px-2 py-1 bg-rose-100 dark:bg-rose-950/70 text-rose-600 dark:text-rose-400 text-[8px] font-bold uppercase tracking-wider rounded-md z-10 border border-rose-200 dark:border-rose-900/50">Sisa {part.stock}</span>
                       )}
                       <img 
                         src={part.image_url || 'https://cdn-icons-png.flaticon.com/128/683/683100.png'} 
                         alt={part.name} 
-                        className="w-full h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500"
+                        className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500 dark:brightness-95"
                       />
                     </div>
                     
                     <div className="p-4 flex flex-col flex-1 pointer-events-none">
                       <div className="mb-1.5 flex items-center">
-                        <span className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-md text-[8.5px] font-extrabold tracking-widest uppercase truncate max-w-full">
+                        <span className="inline-block px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 rounded-md text-[8.5px] font-extrabold tracking-widest uppercase truncate max-w-full">
                           {unitName}
                         </span>
                       </div>
 
-                      <h4 className="text-[13px] font-bold text-slate-800 leading-tight mb-1 line-clamp-2">{part.name}</h4>
+                      <h4 className="text-[13px] font-bold text-slate-800 dark:text-slate-100 leading-tight mb-1 line-clamp-2">{part.name}</h4>
                       
                       <div className="mt-auto pt-3 flex items-end justify-between">
                         <div>
-                          <span className="text-[9px] font-medium text-slate-400 block mb-0.5">Harga</span>
-                          <span className="text-[14px] font-black text-blue-600 leading-none">Rp{part.price?.toLocaleString('id-ID')}</span>
+                          <span className="text-[9px] font-medium text-slate-400 dark:text-slate-500 block mb-0.5">Harga</span>
+                          <span className="text-[14px] font-black text-blue-600 dark:text-blue-400 leading-none">Rp{part.price?.toLocaleString('id-ID')}</span>
                         </div>
                         <button className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center hover:bg-slate-800 shadow-md pointer-events-auto">
                           <Plus className="w-4 h-4" />

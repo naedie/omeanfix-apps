@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, Search, Wrench, Settings, AlertCircle, Phone, 
-  MapPin, User, FileText, CheckCircle2, Package, Loader2, ArrowRight, Camera, Calendar, Truck, Home
+  MapPin, User, FileText, CheckCircle2, Package, Loader2, ArrowRight, Camera, Calendar, Truck, Home,
+  Ticket, Tag, Sparkles
 } from 'lucide-react';
 import { supabase } from '../supabase';
 import { triggerRipple } from '../utils/ripple';
@@ -23,6 +24,11 @@ export default function BookingModal({ isOpen, onClose, selectedCategory }: Book
   // DATA MASTER UNIT
   const [units, setUnits] = useState<any[]>([]);
   const [isLoadingMaster, setIsLoadingMaster] = useState(false);
+
+  // VOUCHER WALLET STATE
+  const [availableVouchers, setAvailableVouchers] = useState<any[]>([]);
+  const [isLoadingVouchers, setIsLoadingVouchers] = useState(false);
+  const [selectedVoucher, setSelectedVoucher] = useState<any | null>(null);
 
   // SELECTIONS (Langkah 1)
   const [searchUnit, setSearchUnit] = useState('');
@@ -59,10 +65,12 @@ export default function BookingModal({ isOpen, onClose, selectedCategory }: Book
       setReserveDate('');
       setTimeSlot('');
       setAttachmentBase64(null);
+      setSelectedVoucher(null);
       
       fetchMasterData();
       fetchUserProfile();
       generateCalendar();
+      fetchVouchers();
     }
   }, [isOpen, selectedCategory]);
 
@@ -111,6 +119,71 @@ export default function BookingModal({ isOpen, onClose, selectedCategory }: Book
       console.error(error);
     } finally {
       setIsLoadingMaster(false);
+    }
+  };
+
+  const fetchVouchers = async () => {
+    setIsLoadingVouchers(true);
+    try {
+      const { data, error } = await supabase
+        .from('vouchers_promos')
+        .select('*')
+        .eq('is_active', true);
+      if (!error && data) {
+        setAvailableVouchers(data);
+      }
+    } catch (err) {
+      console.error('Gagal mengambil daftar voucher:', err);
+    } finally {
+      setIsLoadingVouchers(false);
+    }
+  };
+
+  const getVoucherStyle = (theme?: string) => {
+    switch (theme) {
+      case 'rose':
+        return {
+          badgeBg: 'bg-rose-50 text-rose-700 border-rose-200',
+          iconBg: 'bg-rose-50 text-rose-600 border border-rose-100',
+          selectedBorder: 'border-rose-500 bg-rose-50/50 shadow-sm',
+          codeColor: 'text-rose-700'
+        };
+      case 'amber':
+        return {
+          badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
+          iconBg: 'bg-amber-50 text-amber-600 border border-amber-100',
+          selectedBorder: 'border-amber-500 bg-amber-50/50 shadow-sm',
+          codeColor: 'text-amber-700'
+        };
+      case 'emerald':
+        return {
+          badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+          iconBg: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
+          selectedBorder: 'border-emerald-500 bg-emerald-50/50 shadow-sm',
+          codeColor: 'text-emerald-700'
+        };
+      case 'sky':
+        return {
+          badgeBg: 'bg-sky-50 text-sky-700 border-sky-200',
+          iconBg: 'bg-sky-50 text-sky-600 border border-sky-100',
+          selectedBorder: 'border-sky-500 bg-sky-50/50 shadow-sm',
+          codeColor: 'text-sky-700'
+        };
+      case 'indigo':
+        return {
+          badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+          iconBg: 'bg-indigo-50 text-indigo-600 border border-indigo-100',
+          selectedBorder: 'border-indigo-500 bg-indigo-50/50 shadow-sm',
+          codeColor: 'text-indigo-700'
+        };
+      case 'teal':
+      default:
+        return {
+          badgeBg: 'bg-teal-50 text-teal-700 border-teal-200',
+          iconBg: 'bg-teal-50 text-teal-600 border border-teal-100',
+          selectedBorder: 'border-teal-500 bg-teal-50/50 shadow-sm',
+          codeColor: 'text-teal-700'
+        };
     }
   };
 
@@ -177,6 +250,11 @@ export default function BookingModal({ isOpen, onClose, selectedCategory }: Book
       }
       if (attachmentBase64) {
         combinedNotes += `\n[FOTO_TERLAMPIR]`;
+      }
+      if (selectedVoucher) {
+        const vCode = (selectedVoucher.code || 'PROMO').trim().toUpperCase();
+        const vTitle = (selectedVoucher.title || 'Voucher Promo').trim();
+        combinedNotes += `\n[PROMO_APPLIED: ${vCode} | ${vTitle}]`;
       }
 
       const isBawaSendiri = selectedMethod === 'Bawa Sendiri';
@@ -524,6 +602,117 @@ export default function BookingModal({ isOpen, onClose, selectedCategory }: Book
                             </div>
                         )}
                      </div>
+                  </div>
+
+                  {/* === VOUCHER WALLET INTERAKTIF (PILIH VOUCHER LANGSUNG) === */}
+                  <div className="bg-white p-5 rounded-[24px] border border-slate-100 shadow-sm space-y-3.5">
+                     <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <div className="flex items-center gap-2">
+                           <div className="p-2 bg-gradient-to-tr from-teal-500 to-emerald-400 text-white rounded-xl shadow-xs">
+                              <Ticket className="w-4 h-4" />
+                           </div>
+                           <div>
+                              <h3 className="text-[12px] font-extrabold text-slate-800">Voucher Wallet</h3>
+                              <p className="text-[10px] text-slate-400 font-medium">Pilih kupon promo untuk potongan servis</p>
+                           </div>
+                        </div>
+
+                        {selectedVoucher && (
+                           <button 
+                              type="button" 
+                              onClick={() => setSelectedVoucher(null)}
+                              className="text-[10px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg border border-rose-100 transition-colors"
+                           >
+                              Batal Pilih
+                           </button>
+                        )}
+                     </div>
+
+                     {isLoadingVouchers ? (
+                        <div className="flex items-center justify-center py-4 gap-2 text-slate-400 text-xs">
+                           <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+                           <span>Memuat voucher aktif...</span>
+                        </div>
+                     ) : availableVouchers.length === 0 ? (
+                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 text-center">
+                           <p className="text-[11px] text-slate-400 font-medium">Tidak ada voucher promo aktif saat ini.</p>
+                        </div>
+                     ) : (
+                        <div className="space-y-2 max-h-[190px] overflow-y-auto scrollbar-hide pr-0.5">
+                           {availableVouchers.map((v) => {
+                              const isSelected = selectedVoucher?.id === v.id;
+                              const style = getVoucherStyle(v.theme_color);
+
+                              return (
+                                 <div
+                                    key={v.id}
+                                    onClick={() => {
+                                       if (isSelected) {
+                                          setSelectedVoucher(null);
+                                       } else {
+                                          setSelectedVoucher(v);
+                                       }
+                                    }}
+                                    className={`cursor-pointer p-3 rounded-2xl border transition-all relative overflow-hidden select-none flex items-center gap-3 ${
+                                       isSelected 
+                                          ? `${style.selectedBorder} ring-2 ring-emerald-500 shadow-sm scale-[1.01]` 
+                                          : 'bg-white border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/70'
+                                    }`}
+                                 >
+                                    {/* Left ticket icon indicator */}
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${style.iconBg} font-bold`}>
+                                       <Ticket className="w-5 h-5" />
+                                    </div>
+
+                                    {/* Voucher Details */}
+                                    <div className="flex-1 min-w-0">
+                                       <div className="flex items-center gap-1.5 mb-0.5">
+                                          <span className={`text-[8.5px] font-extrabold uppercase px-1.5 py-0.2 rounded border ${style.badgeBg}`}>
+                                             {v.category || 'PROMO'}
+                                          </span>
+                                          {v.code && (
+                                             <span className="text-[9px] font-mono font-black px-1.5 py-0.2 rounded bg-slate-900 text-amber-300 tracking-wider">
+                                                {v.code}
+                                             </span>
+                                          )}
+                                       </div>
+                                       <h4 className={`text-[12px] font-extrabold truncate ${isSelected ? 'text-slate-900' : 'text-slate-800'}`}>
+                                          {v.title}
+                                       </h4>
+                                       {v.description && (
+                                          <p className="text-[9.5px] text-slate-400 truncate mt-0.5 font-medium">
+                                             {v.description}
+                                          </p>
+                                       )}
+                                    </div>
+
+                                    {/* Right Check / Select button */}
+                                    <div className="shrink-0 flex items-center">
+                                       {isSelected ? (
+                                          <span className="px-2.5 py-1 bg-emerald-500 text-white text-[10px] font-extrabold rounded-full flex items-center gap-1 shadow-xs animate-in zoom-in-90 duration-200">
+                                             <CheckCircle2 className="w-3.5 h-3.5" /> Digunakan
+                                          </span>
+                                       ) : (
+                                          <span className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded-full transition-colors">
+                                             Pilih
+                                          </span>
+                                       )}
+                                    </div>
+                                 </div>
+                              );
+                           })}
+                        </div>
+                     )}
+
+                     {/* Active selected notification pill */}
+                     {selectedVoucher && (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 flex items-center gap-2 text-emerald-800 animate-in fade-in slide-in-from-top-1">
+                           <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                           <p className="text-[11px] font-bold leading-tight">
+                              Voucher <span className="font-mono underline">{selectedVoucher.code || 'PROMO'}</span> dipilih! Tag promo otomatis disematkan pada pesanan.
+                           </p>
+                        </div>
+                     )}
                   </div>
 
                   <div className="bg-blue-50 border border-blue-100 rounded-[20px] p-4 flex gap-3">
