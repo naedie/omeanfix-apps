@@ -13,6 +13,7 @@ import InternalPortal from './components/InternalPortal';
 import SparepartTab from './components/SparepartTab';
 import TrackerMockup from './components/TrackerMockup'; // <-- IMPORT TRACKER BARU
 import HelpGuideModal from './components/HelpGuideModal';
+import VoiceAssistantModal from './components/VoiceAssistantModal';
 import { useTheme } from './context/ThemeContext';
 import { triggerRipple } from './utils/ripple';
 import { 
@@ -40,6 +41,7 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
   const [isPortalOpen, setIsPortalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   
   // STATE JEMBATAN: Menyimpan data suku cadang dari Beranda untuk dikirim ke SparepartTab
   const [preSelectedPart, setPreSelectedPart] = useState<any | null>(null);
@@ -1695,6 +1697,17 @@ export default function App() {
             >
               <HelpCircle className="w-5 h-5" />
             </button>
+            <button 
+              onClick={(e) => { 
+                triggerRipple(e); 
+                setIsVoiceModalOpen(true); 
+              }} 
+              className="ripple-btn relative p-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full shadow-md shadow-blue-600/30 hover:opacity-90 transition-all outline-none animate-pulse" 
+              title="OMEANFIX Voice AI Assistant"
+              aria-label="OMEANFIX Voice AI Assistant"
+            >
+              <Sparkles className="w-5 h-5" />
+            </button>
             <button onClick={(e) => { triggerRipple(e); setIsPortalOpen(true); }} className="ripple-btn relative p-2.5 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-100 dark:border-slate-700 outline-none" title="Portal Admin">
               <Lock className="w-5 h-5" />
             </button>
@@ -2074,6 +2087,7 @@ export default function App() {
 
       <BookingModal isOpen={isBookingOpen} onClose={() => setIsBookingOpen(false)} selectedCategory={selectedCategory} />
       <HelpGuideModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
+      <VoiceAssistantModal isOpen={isVoiceModalOpen} onClose={() => setIsVoiceModalOpen(false)} />
     </div>
   );
 }
