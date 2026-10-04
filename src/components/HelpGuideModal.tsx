@@ -1,5 +1,10 @@
-import React, { useState } from 'react';
-import { X, Search, BookOpen, CheckCircle2, ChevronRight, HelpCircle, Wrench, Calendar, FileText, Truck, Sparkles, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  X, Search, BookOpen, CheckCircle2, ChevronRight, HelpCircle, 
+  Wrench, Calendar, FileText, Truck, Sparkles, ShieldCheck,
+  MapPin, Lock, User, CreditCard, Zap, Car, Smartphone, Ticket, Award
+} from 'lucide-react';
+import { supabase } from '../supabase';
 
 interface HelpGuideModalProps {
   isOpen: boolean;
@@ -10,15 +15,13 @@ export default function HelpGuideModal({ isOpen, onClose }: HelpGuideModalProps)
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
-  const HELP_TOPICS = [
+  const DEFAULT_HELP_TOPICS = [
     {
       id: 'step-1',
       step: 'Langkah 1',
       title: 'Pilih Kategori & Layanan Servis',
       category: 'Pemesanan',
-      icon: Wrench,
+      iconName: 'Wrench',
       summary: 'Cara memilih jasa perawatan atau perbaikan perangkat rumah tangga.',
       details: [
         'Buka halaman Beranda OMEANFIX.',
@@ -32,7 +35,7 @@ export default function HelpGuideModal({ isOpen, onClose }: HelpGuideModalProps)
       step: 'Langkah 2',
       title: 'Isi Data Diri, Lokasi & Jadwal',
       category: 'Reservasi',
-      icon: Calendar,
+      iconName: 'Calendar',
       summary: 'Menentukan alamat lokasi pengerjaan dan waktu kedatangan teknisi.',
       details: [
         'Masukkan alamat lengkap beserta patokan agar teknisi mudah menemukan lokasi Anda.',
@@ -45,11 +48,11 @@ export default function HelpGuideModal({ isOpen, onClose }: HelpGuideModalProps)
       step: 'Langkah 3',
       title: 'Tulis Keluhan & Gunakan Dikte Suara',
       category: 'Fitur Suara',
-      icon: FileText,
+      iconName: 'FileText',
       summary: 'Memasukkan detail kerusakan dengan mengetik atau berbicara langsung.',
       details: [
         'Jelaskan keluhan kerusakan unit pada kolom detail.',
-        'Gunakan tombol **"Dikte Suara"** (ikon mikrofon) untuk berbicara langsung tanpa mengetik.',
+        'Gunakan tombol "Dikte Suara" (ikon mikrofon) untuk berbicara langsung tanpa mengetik.',
         'Lampirkan foto kondisi unit yang rusak jika diperlukan (opsional).',
         'Gunakan kupon dari Voucher Wallet untuk potongan harga.'
       ]
@@ -59,7 +62,7 @@ export default function HelpGuideModal({ isOpen, onClose }: HelpGuideModalProps)
       step: 'Langkah 4',
       title: 'Kirim Pesanan & Lacak Real-Time',
       category: 'Pelacakan',
-      icon: Truck,
+      iconName: 'Truck',
       summary: 'Memantau status pengerjaan teknisi dan progres perbaikan.',
       details: [
         'Setelah pesanan dibuat, Anda akan mendapatkan Nomor Pesanan unik (contoh: #ORD-XXXX).',
@@ -72,7 +75,7 @@ export default function HelpGuideModal({ isOpen, onClose }: HelpGuideModalProps)
       step: 'Langkah 5',
       title: 'Pencarian Suku Cadang & Tambah Part',
       category: 'Sparepart',
-      icon: Sparkles,
+      iconName: 'Sparkles',
       summary: 'Mencari komponen suku cadang original dengan fitur pencarian suara.',
       details: [
         'Buka tab "Sparepart" di menu bawah aplikasi.',
@@ -82,11 +85,71 @@ export default function HelpGuideModal({ isOpen, onClose }: HelpGuideModalProps)
     }
   ];
 
-  const filteredTopics = HELP_TOPICS.filter(topic =>
+  const [helpTopics, setHelpTopics] = useState<any[]>(DEFAULT_HELP_TOPICS);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchHelpDocs = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('app_information_docs')
+          .select('*')
+          .eq('doc_type', 'help_center')
+          .eq('is_active', true)
+          .order('display_order', { ascending: true });
+
+        if (!error && data && data.length > 0) {
+          const mapped = data.map((d: any, idx: number) => ({
+            id: d.id ? String(d.id) : `db-help-${idx}`,
+            step: `Langkah ${d.display_order ?? idx + 1}`,
+            title: d.title,
+            category: d.summary ? d.summary.split(' ')[0] : 'Panduan',
+            iconName: d.icon_name || d.icon || 'BookOpen',
+            summary: d.summary,
+            details: Array.isArray(d.details) && d.details.length > 0 ? d.details : [d.summary]
+          }));
+          setHelpTopics(mapped);
+        }
+      } catch (err) {
+        console.warn('Hybrid fallback used for Help Guide Modal:', err);
+      }
+    };
+
+    fetchHelpDocs();
+  }, [isOpen]);
+
+  const renderCmsIcon = (iconName: string, className = "w-4 h-4") => {
+    switch (iconName) {
+      case 'ShieldCheck': return <ShieldCheck className={className} />;
+      case 'FileText': return <FileText className={className} />;
+      case 'Wrench': return <Wrench className={className} />;
+      case 'Calendar': return <Calendar className={className} />;
+      case 'Truck': return <Truck className={className} />;
+      case 'Sparkles': return <Sparkles className={className} />;
+      case 'MapPin': return <MapPin className={className} />;
+      case 'Lock': return <Lock className={className} />;
+      case 'User': return <User className={className} />;
+      case 'CreditCard': return <CreditCard className={className} />;
+      case 'HelpCircle': return <HelpCircle className={className} />;
+      case 'BookOpen': return <BookOpen className={className} />;
+      case 'CheckCircle2': return <CheckCircle2 className={className} />;
+      case 'Zap': return <Zap className={className} />;
+      case 'Car': return <Car className={className} />;
+      case 'Smartphone': return <Smartphone className={className} />;
+      case 'Ticket': return <Ticket className={className} />;
+      case 'Award': return <Award className={className} />;
+      default: return <BookOpen className={className} />;
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const filteredTopics = helpTopics.filter(topic =>
     topic.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     topic.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
     topic.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    topic.details.some(d => d.toLowerCase().includes(searchQuery.toLowerCase()))
+    topic.details.some((d: string) => d.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -150,7 +213,6 @@ export default function HelpGuideModal({ isOpen, onClose }: HelpGuideModalProps)
             </div>
           ) : (
             filteredTopics.map((topic) => {
-              const IconComp = topic.icon;
               const isSelected = selectedTopicId === topic.id;
 
               return (
@@ -164,24 +226,24 @@ export default function HelpGuideModal({ isOpen, onClose }: HelpGuideModalProps)
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
                       <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
-                        <IconComp className="w-4 h-4" />
+                        {renderCmsIcon(topic.iconName || 'BookOpen', 'w-4 h-4')}
                       </div>
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase rounded-md tracking-wider">
                             {topic.step}
                           </span>
-                          <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                          <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 truncate max-w-[120px]">
                             {topic.category}
                           </span>
                         </div>
-                        <h3 className="font-extrabold text-[14px] text-slate-900 dark:text-white tracking-tight">{topic.title}</h3>
+                        <h3 className="font-extrabold text-[14px] text-slate-900 dark:text-white tracking-tight leading-snug">{topic.title}</h3>
                         <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">{topic.summary}</p>
                       </div>
                     </div>
-                    <div className={`p-1.5 rounded-full text-slate-400 transition-transform ${isSelected ? 'rotate-90 text-blue-600' : ''}`}>
+                    <div className={`p-1.5 rounded-full text-slate-400 transition-transform shrink-0 ${isSelected ? 'rotate-90 text-blue-600' : ''}`}>
                       <ChevronRight className="w-4 h-4" />
                     </div>
                   </div>
@@ -190,7 +252,7 @@ export default function HelpGuideModal({ isOpen, onClose }: HelpGuideModalProps)
                   {isSelected && (
                     <div className="mt-4 pt-3.5 border-t border-blue-200/50 dark:border-blue-900/40 space-y-2 animate-in fade-in duration-200">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-blue-800 dark:text-blue-300 mb-2">Panduan Detail:</p>
-                      {topic.details.map((det, idx) => (
+                      {topic.details.map((det: string, idx: number) => (
                         <div key={idx} className="flex items-start gap-2 text-[12px] text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
                           <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                           <span>{det}</span>

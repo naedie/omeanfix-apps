@@ -5,7 +5,7 @@ import {
    Bell, Wrench, Package, Database, ArrowRight, LogOut, 
    ExternalLink, Sparkles, Search, Snowflake, Tv, Ticket, Home,
   Truck, Zap, Smartphone, Award, Loader2, QrCode, History, Plus, Lock, Mail, Phone, Camera, XCircle, Calendar, Image as ImageIcon, MapPin, Clock, CreditCard,
-  Sun, Moon
+  Sun, Moon, MessageCircle
 } from 'lucide-react';
 import { supabase } from './supabase';
 import BookingModal from './components/BookingModal';
@@ -13,6 +13,7 @@ import InternalPortal from './components/InternalPortal';
 import SparepartTab from './components/SparepartTab';
 import TrackerMockup from './components/TrackerMockup'; // <-- IMPORT TRACKER BARU
 import HelpGuideModal from './components/HelpGuideModal';
+import PrivacyPolicyModal from './components/PrivacyPolicyModal';
 import { useTheme } from './context/ThemeContext';
 import { triggerRipple } from './utils/ripple';
 import { 
@@ -40,6 +41,7 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
   const [isPortalOpen, setIsPortalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   
   // STATE JEMBATAN: Menyimpan data suku cadang dari Beranda untuk dikirim ke SparepartTab
   const [preSelectedPart, setPreSelectedPart] = useState<any | null>(null);
@@ -134,7 +136,7 @@ export default function App() {
   const [memNotes, setMemNotes] = useState('');
   const [isSubmittingMem, setIsSubmittingMem] = useState(false);
 
-  const [profileStep, setProfileStep] = useState<'main' | 'edit_profile' | 'edit_password' | 'help_center'>('main');
+  const [profileStep, setProfileStep] = useState<'main' | 'edit_profile' | 'edit_password' | 'help_center' | 'faq_jasa'>('main');
   const [helpSearchQuery, setHelpSearchQuery] = useState('');
   const [selectedHelpTopicId, setSelectedHelpTopicId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -728,6 +730,24 @@ export default function App() {
         }
     };
 
+    const handleReviewOrder = async (orderId: string, currentNote: string, reviewChoice: string) => {
+        try {
+           const reviewTag = `[REVIEW:${reviewChoice}]`;
+           let cleanNote = (currentNote || '').replace(/\[REVIEW:[^\]]+\]/g, '').trim();
+           const newNote = cleanNote ? `${cleanNote} \n${reviewTag}` : reviewTag;
+           
+           const { error } = await supabase.from('orders').update({
+              note: newNote
+           }).eq('id', orderId);
+           
+           if (error) throw error;
+           alert('Terima kasih! Feedback Anda sangat berharga bagi kami.');
+           fetchMyOrders();
+        } catch (err: any) {
+           alert('Gagal mengirimkan review: ' + err.message);
+        }
+    };
+
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, orderId: string) => {
         if (e.target.files && e.target.files[0]) {
             setSelectedFiles(prev => ({ ...prev, [orderId]: e.target.files![0] }));
@@ -944,6 +964,14 @@ export default function App() {
                       desc: invMatch[5] || '-'
                   };
                   rawNote = rawNote.replace(/\[INVOICE:[^\]]+\]/g, '');
+              } else if (Number(ord.total_amount || ord.base_fee || ord.material_fee || ord.transport_fee) > 0) {
+                  invoiceData = {
+                      jasa: Number(ord.base_fee) || 0,
+                      part: Number(ord.material_fee) || 0,
+                      layanan: Number(ord.transport_fee) || 0,
+                      total: Number(ord.total_amount) || 0,
+                      desc: ord.complaint_description || ord.complaint || '-'
+                  };
               }
 
               const estMatch = rawNote.match(/\[ESTIMASI:([^\]]+)\]/);
@@ -1012,6 +1040,14 @@ export default function App() {
               if (cancelMatch && cancelMatch[1]) {
                   cancelReasonData = cancelMatch[1];
                   rawNote = rawNote.replace(/\[ALASAN_BATAL:[^\]]+\]/g, '');
+              }
+
+              // EKSTRAK REVIEW JIKA ADA
+              let reviewData = null;
+              const reviewMatch = rawNote.match(/\[REVIEW:\s*([^\]]+)\]/);
+              if (reviewMatch && reviewMatch[1]) {
+                  reviewData = reviewMatch[1];
+                  rawNote = rawNote.replace(/\[REVIEW:[^\]]+\]/g, '');
               }
 
               let cleanComplaint = rawNote.replace(/\[PELANGGAN MEMINTA TAMBAHAN PART:[^\]]+\]/g, '').trim();
@@ -1282,6 +1318,47 @@ export default function App() {
                          <button onClick={() => setViewReceiptModal(paymentProofData)} className="text-[10px] font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-200">Lihat Bukti Bayar</button>
                      </div>
                   )}
+
+                  {sLower === 'selesai' && (
+                     <div className="mt-3.5 pt-3.5 border-t border-slate-100 dark:border-slate-800 space-y-2.5 animate-in fade-in">
+                        <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                           <Award className="w-4 h-4 text-amber-500 shrink-0" />
+                           <span>Evaluasi & Kepuasan Layanan</span>
+                        </div>
+                        {reviewData ? (
+                           <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 rounded-xl flex items-center justify-between text-xs">
+                              <span className="font-bold text-slate-600 dark:text-slate-300">Penilaian Anda:</span>
+                              <span className="px-3 py-1 bg-emerald-600 text-white font-extrabold rounded-lg uppercase tracking-wider text-[10px]">
+                                 {reviewData === 'Suka Sekali' ? '😍 Suka Sekali' :
+                                  reviewData === 'Suka' ? '🙂 Suka' :
+                                  reviewData === 'Sedang' ? '😐 Sedang' :
+                                  '😞 Kecewa'}
+                              </span>
+                           </div>
+                        ) : (
+                           <div className="bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2">
+                              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Bagaimana kualitas hasil pengerjaan teknisi kami?</p>
+                              <div className="grid grid-cols-4 gap-1.5">
+                                 {[
+                                    { value: 'Suka Sekali', label: 'Suka Sekali', emoji: '😍' },
+                                    { value: 'Suka', label: 'Suka', emoji: '🙂' },
+                                    { value: 'Sedang', label: 'Sedang', emoji: '😐' },
+                                    { value: 'Kecewa', label: 'Kecewa', emoji: '😞' }
+                                 ].map((item) => (
+                                    <button
+                                       key={item.value}
+                                       onClick={() => handleReviewOrder(ord.id, ord.note || ord.complaint_description || '', item.value)}
+                                       className="p-2 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-200 dark:hover:border-blue-900 shadow-xs active:scale-95 transition-all outline-none"
+                                    >
+                                       <span className="block text-[16px] mb-1">{item.emoji}</span>
+                                       <span className="block text-[8.5px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-tighter leading-none">{item.label}</span>
+                                    </button>
+                                 ))}
+                              </div>
+                           </div>
+                        )}
+                     </div>
+                  )}
                   
                 </div>
               )
@@ -1293,77 +1370,127 @@ export default function App() {
         <div className="h-32 w-full shrink-0 pointer-events-none"></div>
 
         {/* MODAL CETAK INVOICE */}
-        {showInvoiceModal && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 backdrop-blur-md overflow-y-auto" onClick={() => setShowInvoiceModal(null)}>
-               <div className="min-h-full py-24 flex items-center justify-center w-full px-5">
-                   <div className="w-full max-w-[320px] bg-[#fdfdfd] shadow-2xl relative flex flex-col rounded-sm animate-in zoom-in-95 print:w-full print:shadow-none print:m-0" onClick={e => e.stopPropagation()}>
-                      <div className="p-6 pb-3 text-center text-slate-800">
-                          <h2 className="font-bold text-[22px] uppercase tracking-wider font-mono">OMEANFIX</h2>
-                          <p className="text-[10px] uppercase tracking-widest text-slate-500 mt-1 font-mono">Cirebon On-Demand Service</p>
-                          <p className="text-[12px] mt-3 font-bold font-mono px-3 py-1 bg-slate-100 border border-slate-200 border-dashed inline-block">#{showInvoiceModal.ord.order_code || 'CRB-INV'}</p>
-                      </div>
-                      <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
-                      
-                      <div className="p-5 py-4 space-y-2 text-[11px] font-mono text-slate-700">
-                          <div className="flex justify-between"><span className="text-slate-500">Pelanggan:</span> <span className="font-bold text-right truncate w-24">{showInvoiceModal.ord.customer_name || 'Pelanggan'}</span></div>
-                          <div className="flex justify-between"><span className="text-slate-500">Layanan:</span> <span className="font-bold text-right truncate w-32">{showInvoiceModal.ord.custom_service_title || showInvoiceModal.ord.unit_name}</span></div>
-                          <div className="flex justify-between"><span className="text-slate-500">Tanggal:</span> <span className="font-bold text-right">{new Date(showInvoiceModal.ord.created_at).toLocaleDateString('id-ID')}</span></div>
-                      </div>
-                      
-                      <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
-                      <div className="p-5 py-4 text-[11px] font-mono text-slate-700">
-                          <span className="text-slate-500 block mb-1">Deskripsi Tindakan:</span>
-                          <span className="font-bold leading-relaxed">{showInvoiceModal.invoiceData.desc || '-'}</span>
-                      </div>
-                      <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
-                      <div className="p-5 py-4 space-y-3 text-[12px] font-mono text-slate-700">
-                          <div className="flex justify-between items-center">
-                             <span>Biaya Jasa</span>
-                             <span className="font-bold">Rp {showInvoiceModal.invoiceData.jasa.toLocaleString('id-ID')}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                             <span>Suku Cadang</span>
-                             <span className="font-bold">Rp {showInvoiceModal.invoiceData.part.toLocaleString('id-ID')}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                             <span>Biaya Layanan</span>
-                             <span className="font-bold">Rp {showInvoiceModal.invoiceData.layanan.toLocaleString('id-ID')}</span>
-                          </div>
-                      </div>
-                      <div className="w-full px-4"><div className="border-b-2 border-slate-800"></div></div>
-                      
-                      <div className="p-5 py-4 flex justify-between items-center font-black text-[15px] font-mono text-slate-900">
-                          <span>TOTAL BAYAR</span>
-                          <span>Rp {showInvoiceModal.invoiceData.total.toLocaleString('id-ID')}</span>
-                      </div>
-                      <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
-                      <div className="p-5 py-4 flex flex-col items-center justify-center bg-slate-50">
-                         <p className="text-[10px] font-bold text-slate-800 mb-2 font-mono">METODE PEMBAYARAN</p>
-                         
-                         <div className="w-28 h-28 bg-white border border-slate-200 rounded-lg shadow-sm flex items-center justify-center p-2 mb-3">
-                            <div className="w-full h-full border-2 border-slate-800 flex items-center justify-center relative">
-                               <div className="absolute top-0 left-0 w-2 h-2 border-b-2 border-r-2 border-white bg-slate-800"></div>
-                               <div className="absolute bottom-0 right-0 w-2 h-2 border-t-2 border-l-2 border-white bg-slate-800"></div>
-                               <QrCode className="w-16 h-16 text-slate-800" strokeWidth={1.5} />
+        {showInvoiceModal && (() => {
+           const { ord, invoiceData } = showInvoiceModal;
+           const rawPhone = ord.customer_phone || ord.user_phone || '';
+           let cleaned = rawPhone.replace(/\D/g, '');
+           if (cleaned.startsWith('0')) cleaned = '62' + cleaned.substring(1);
+           
+           const invoiceCode = ord.order_code || (ord.id ? String(ord.id).slice(0, 8) : 'CRB-INV');
+           const invoiceDate = ord.created_at ? new Date(ord.created_at).toLocaleDateString('id-ID') : '-';
+           const customerName = ord.customer_name || 'Pelanggan';
+           const unitName = ord.custom_service_title || ord.unit_name || '-';
+           const descTindakan = invoiceData.desc || '-';
+           
+           const text = `*🧾 INVOICE RESMI OMEANFIX*\n` +
+             `*CIREBON ON-DEMAND SERVICE*\n` +
+             `----------------------------------------\n` +
+             `*No. Invoice:* \`#${invoiceCode}\`\n` +
+             `*Tanggal:* \`${invoiceDate}\`\n` +
+             `*Pelanggan:* Kak ${customerName}\n\n` +
+             `*🔧 DETAIL LAYANAN:*\n` +
+             `• *Unit & Layanan:* ${unitName}\n` +
+             `• *Keterangan:* ${descTindakan}\n\n` +
+             `*💰 RINCIAN BIAYA:*\n` +
+             `• *Biaya Jasa:* Rp ${invoiceData.jasa.toLocaleString('id-ID')}\n` +
+             `• *Suku Cadang:* Rp ${invoiceData.part.toLocaleString('id-ID')}\n` +
+             `• *Biaya Layanan:* Rp ${invoiceData.layanan.toLocaleString('id-ID')}\n` +
+             `----------------------------------------\n` +
+             `👉 *TOTAL BAYAR:* *Rp ${invoiceData.total.toLocaleString('id-ID')}*\n` +
+             `----------------------------------------\n\n` +
+             `*💳 METODE PEMBAYARAN:*\n` +
+             `• *QRIS OMEANFIX* (Silakan scan QR Code pada aplikasi)\n` +
+             `• *Transfer Bank BCA:* 123-456-7890 a.n OMEANFIX\n` +
+             `• *Transfer Bank Mandiri:* 098-765-4321 a.n OMEANFIX\n\n` +
+             `*Pemberitahuan:*\n` +
+             `Harap kirimkan bukti transfer Anda ke nomor WhatsApp ini untuk verifikasi instan. Terima kasih telah mempercayakan perbaikan Anda kepada *OMEANFIX*! 🙏`;
+             
+           const waLink = `https://wa.me/${cleaned}?text=${encodeURIComponent(text)}`;
+
+           return (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 backdrop-blur-md overflow-y-auto" onClick={() => setShowInvoiceModal(null)}>
+                 <div className="min-h-full py-24 flex items-center justify-center w-full px-5">
+                     <div className="w-full max-w-[320px] bg-[#fdfdfd] shadow-2xl relative flex flex-col rounded-sm animate-in zoom-in-95 print:w-full print:shadow-none print:m-0" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 pb-3 text-center text-slate-800">
+                            <h2 className="font-bold text-[22px] uppercase tracking-wider font-mono">OMEANFIX</h2>
+                            <p className="text-[10px] uppercase tracking-widest text-slate-500 mt-1 font-mono">Cirebon On-Demand Service</p>
+                            <p className="text-[12px] mt-3 font-bold font-mono px-3 py-1 bg-slate-100 border border-slate-200 border-dashed inline-block">#{invoiceCode}</p>
+                        </div>
+                        <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
+                        
+                        <div className="p-5 py-4 space-y-2 text-[11px] font-mono text-slate-700">
+                            <div className="flex justify-between"><span className="text-slate-500">Pelanggan:</span> <span className="font-bold text-right truncate w-24">{customerName}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Layanan:</span> <span className="font-bold text-right truncate w-32">{unitName}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Tanggal:</span> <span className="font-bold text-right">{invoiceDate}</span></div>
+                        </div>
+                        
+                        <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
+                        <div className="p-5 py-4 text-[11px] font-mono text-slate-700">
+                            <span className="text-slate-500 block mb-1">Deskripsi Tindakan:</span>
+                            <span className="font-bold leading-relaxed">{descTindakan}</span>
+                        </div>
+                        <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
+                        <div className="p-5 py-4 space-y-3 text-[12px] font-mono text-slate-700">
+                            <div className="flex justify-between items-center">
+                               <span>Biaya Jasa</span>
+                               <span className="font-bold">Rp {invoiceData.jasa.toLocaleString('id-ID')}</span>
                             </div>
-                         </div>
-                         
-                         <div className="text-center font-mono text-[10px] text-slate-600 space-y-1">
-                            <p>Atau Transfer Bank:</p>
-                            <p className="font-bold text-slate-800">BCA 123-456-7890 a.n OMEANFIX</p>
-                            <p className="font-bold text-slate-800">MANDIRI 098-765-4321 a.n OMEANFIX</p>
-                         </div>
-                      </div>
-                      
-                      <div className="p-5 text-center">
-                          <button onClick={() => setShowInvoiceModal(null)} className="w-full bg-slate-900 text-white font-sans font-bold py-3.5 rounded-xl text-[13px] active:scale-95 shadow-md outline-none">
-                             Tutup & Bayar Kasir
-                          </button>
-                      </div>
-                   </div>
-               </div>
-            </div>
-        )}
+                            <div className="flex justify-between items-center">
+                               <span>Suku Cadang</span>
+                               <span className="font-bold">Rp {invoiceData.part.toLocaleString('id-ID')}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                               <span>Biaya Layanan</span>
+                               <span className="font-bold">Rp {invoiceData.layanan.toLocaleString('id-ID')}</span>
+                            </div>
+                        </div>
+                        <div className="w-full px-4"><div className="border-b-2 border-slate-800"></div></div>
+                        
+                        <div className="p-5 py-4 flex justify-between items-center font-black text-[15px] font-mono text-slate-900">
+                            <span>TOTAL BAYAR</span>
+                            <span>Rp {invoiceData.total.toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
+                        <div className="p-5 py-4 flex flex-col items-center justify-center bg-slate-50">
+                           <p className="text-[10px] font-bold text-slate-800 mb-2 font-mono">METODE PEMBAYARAN</p>
+                           
+                           <div className="w-28 h-28 bg-white border border-slate-200 rounded-lg shadow-sm flex items-center justify-center p-2 mb-3">
+                              <div className="w-full h-full border-2 border-slate-800 flex items-center justify-center relative">
+                                 <div className="absolute top-0 left-0 w-2 h-2 border-b-2 border-r-2 border-white bg-slate-800"></div>
+                                 <div className="absolute bottom-0 right-0 w-2 h-2 border-t-2 border-l-2 border-white bg-slate-800"></div>
+                                 <QrCode className="w-16 h-16 text-slate-800" strokeWidth={1.5} />
+                              </div>
+                           </div>
+                           
+                           <div className="text-center font-mono text-[10px] text-slate-600 space-y-1">
+                              <p>Atau Transfer Bank:</p>
+                              <p className="font-bold text-slate-800">BCA 123-456-7890 a.n OMEANFIX</p>
+                              <p className="font-bold text-slate-800">MANDIRI 098-765-4321 a.n OMEANFIX</p>
+                           </div>
+                        </div>
+                        
+                        <div className="p-5 pb-0 text-center">
+                            <a 
+                               href={waLink}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-sans font-bold py-3 px-4 rounded-xl text-[12px] active:scale-95 shadow-md flex items-center justify-center gap-2 transition-all outline-none"
+                            >
+                               <MessageCircle className="w-4 h-4 text-white" />
+                               <span>Bagikan via WhatsApp</span>
+                            </a>
+                        </div>
+                        
+                        <div className="p-5 text-center">
+                            <button onClick={() => setShowInvoiceModal(null)} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-sans font-bold py-3 rounded-xl text-[12px] active:scale-95 shadow-md outline-none transition-colors">
+                               Tutup & Bayar Kasir
+                            </button>
+                        </div>
+                     </div>
+                 </div>
+              </div>
+           );
+        })()}
 
         {/* MODAL LIHAT BUKTI BAYAR */}
         {viewReceiptModal && (
@@ -1387,6 +1514,89 @@ export default function App() {
   };
 
   const ProfileContent = () => {
+    const [selectedFaqCat, setSelectedFaqCat] = useState('semua');
+    const [activeFaqId, setActiveFaqId] = useState<string | null>(null);
+    const [cmsFaqs, setCmsFaqs] = useState<any[]>([]);
+
+    useEffect(() => {
+      const fetchCmsFaqs = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('app_information_docs')
+            .select('*')
+            .eq('doc_type', 'faq')
+            .eq('is_active', true)
+            .order('display_order', { ascending: true });
+          
+          if (!error && data && data.length > 0) {
+            const mapped = data.map((d: any, idx: number) => {
+              const textSummary = d.summary ? d.summary.toLowerCase() : '';
+              let cat = 'garansi';
+              if (textSummary.includes('teknisi') || textSummary.includes('mekanik') || textSummary.includes('ahli')) {
+                cat = 'teknisi';
+              } else if (textSummary.includes('sparepart') || textSummary.includes('suku cadang') || textSummary.includes('cadang') || textSummary.includes('komponen')) {
+                cat = 'sparepart';
+              }
+              return {
+                id: d.id ? String(d.id) : `db-faq-${idx}`,
+                category: cat,
+                q: d.title,
+                a: d.content || (Array.isArray(d.details) && d.details.length > 0 ? d.details.join(' ') : d.summary)
+              };
+            });
+            setCmsFaqs(mapped);
+          }
+        } catch (err) {
+          console.warn('Hybrid fallback used for FAQ:', err);
+        }
+      };
+      fetchCmsFaqs();
+    }, []);
+
+    const DEFAULT_FAQS = [
+      {
+        id: 'faq-1',
+        category: 'teknisi',
+        q: 'Apakah teknisi dan mekanik OMEANFIX memiliki sertifikasi resmi?',
+        a: 'Ya, seluruh mitra teknisi dan mekanik kami di OMEANFIX wajib melewati seleksi ketat, uji kompetensi teknis, verifikasi latar belakang, serta dibekali pelatihan sertifikasi standar industri otomotif dan elektronik sebelum dapat menangani unit Anda.'
+      },
+      {
+        id: 'faq-2',
+        category: 'teknisi',
+        q: 'Bagaimana jika hasil perbaikan teknisi tidak selesai atau bermasalah?',
+        a: 'Kami menjunjung tinggi kepuasan pelanggan. Anda dapat memberikan ulasan, mengajukan klaim ketidakpuasan lewat aplikasi, atau menghubungi CS kami. Tim Quality Assurance (QA) kami akan segera menginspeksi dan mengirimkan teknisi pendamping tanpa biaya tambahan.'
+      },
+      {
+        id: 'faq-3',
+        category: 'sparepart',
+        q: 'Apakah suku cadang yang disediakan oleh OMEANFIX dijamin keasliannya?',
+        a: 'Tentu saja! OMEANFIX hanya bekerja sama dengan distributor resmi dan produsen bersertifikat. Seluruh suku cadang yang dibeli melalui platform kami dijamin 100% original, berkualitas premium, dan tersegel dengan jaminan keaslian penuh.'
+      },
+      {
+        id: 'faq-4',
+        category: 'sparepart',
+        q: 'Apakah saya bisa membawa/menyediakan suku cadang sendiri dari luar?',
+        a: 'Sangat bisa! OMEANFIX membebaskan pelanggan untuk memilih pengerjaan menggunakan part sendiri atau memesannya langsung secara praktis melalui tab "Sparepart" di aplikasi kami demi kenyamanan maksimal.'
+      },
+      {
+        id: 'faq-5',
+        category: 'garansi',
+        q: 'Apakah ada jaminan garansi setelah pengerjaan selesai?',
+        a: 'Ya, setiap pengerjaan servis di OMEANFIX mendapatkan jaminan Garansi Pasca-Servis hingga 30 hari kalender. Kartu garansi digital Anda akan otomatis terbit dan aktif di aplikasi setelah status pembayaran terverifikasi lunas.'
+      },
+      {
+        id: 'faq-6',
+        category: 'garansi',
+        q: 'Bagaimana sistem transparansi biaya di OMEANFIX dihitung?',
+        a: 'Seluruh biaya pengerjaan (Biaya Jasa, Suku Cadang, dan Biaya Layanan) dirincikan secara transparan di Invoice Digital Anda. Kami menjamin 100% tidak ada biaya tersembunyi (hidden fees) di luar nominal kesepakatan aplikasi.'
+      }
+    ];
+
+    const FAQS_DATA = cmsFaqs.length > 0 ? cmsFaqs : DEFAULT_FAQS;
+
+    const filteredFaqs = FAQS_DATA.filter(faq => 
+      selectedFaqCat === 'semua' || faq.category === selectedFaqCat
+    );
          
     const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -1560,6 +1770,100 @@ export default function App() {
                 {isSavingProfile ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Simpan Password Baru'}
               </button>
            </form>
+        </div>
+      );
+    }
+
+    if (profileStep === 'faq_jasa') {
+      return (
+        <div className="p-4 space-y-5 animate-in slide-in-from-right-4 bg-slate-50 dark:bg-[#0B0F19] min-h-screen pt-4 pb-[120px] transition-colors">
+          <div className="flex items-center gap-3 mb-4">
+            <button onClick={() => setProfileStep('main')} className="p-2.5 bg-white dark:bg-slate-900 rounded-full shadow-sm text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 transition-all outline-none">
+              <ChevronLeft className="w-5 h-5"/>
+            </button>
+            <div>
+              <h2 className="text-[18px] font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-tight">F.A.Q Jasa & Suku Cadang</h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Informasi keahlian teknisi, kualitas sparepart, & garansi</p>
+            </div>
+          </div>
+
+          {/* Category Selector Tab */}
+          <div className="flex gap-1.5 p-1 bg-white dark:bg-slate-900 border-0 rounded-xl overflow-x-auto no-scrollbar">
+            {[
+              { id: 'semua', name: 'Semua' },
+              { id: 'teknisi', name: 'Teknisi & Mekanik' },
+              { id: 'sparepart', name: 'Suku Cadang' },
+              { id: 'garansi', name: 'Garansi & Bayar' }
+            ].map(cat => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => { setSelectedFaqCat(cat.id); setActiveFaqId(null); }}
+                className={`px-3 py-1.5 text-[10.5px] font-bold rounded-lg transition-all shrink-0 outline-none ${
+                  selectedFaqCat === cat.id
+                    ? 'bg-slate-900 dark:bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
+                }`}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+
+          {/* FAQ Accordion Items */}
+          <div className="space-y-2.5">
+            {filteredFaqs.map(faq => {
+              const isOpen = activeFaqId === faq.id;
+              return (
+                <div
+                  key={faq.id}
+                  onClick={() => setActiveFaqId(isOpen ? null : faq.id)}
+                  className={`rounded-2xl border transition-all duration-200 cursor-pointer overflow-hidden ${
+                    isOpen
+                      ? 'bg-blue-50/20 dark:bg-blue-950/10 border-blue-200 dark:border-blue-900 shadow-xs'
+                      : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/80 shadow-xs hover:border-slate-300 dark:hover:border-slate-700'
+                  }`}
+                >
+                  <div className="p-3.5 flex items-center justify-between gap-3 select-none">
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${isOpen ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200/50 dark:border-slate-700'}`}>
+                        {faq.category === 'teknisi' ? <Wrench className="w-3.5 h-3.5" /> : faq.category === 'sparepart' ? <Package className="w-3.5 h-3.5" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                      </div>
+                      <span className={`text-[12px] font-bold leading-snug pr-2 ${isOpen ? 'text-slate-900 dark:text-white' : 'text-slate-800 dark:text-slate-200'}`}>
+                        {faq.q}
+                      </span>
+                    </div>
+                    <ChevronRight className={`w-4 h-4 shrink-0 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-90 text-blue-600' : ''}`} />
+                  </div>
+                  
+                  {isOpen && (
+                    <div className="px-3.5 pb-4 pl-12 text-[12px] text-slate-600 dark:text-slate-300 leading-relaxed font-medium border-t border-blue-100/30 dark:border-blue-900/20 pt-3 animate-in fade-in slide-in-from-top-1">
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Contact Support Section */}
+          <div className="p-5 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 border border-emerald-100 dark:border-emerald-900/40 rounded-[24px] space-y-3">
+            <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-sm">
+              <ShieldCheck className="w-5 h-5 text-emerald-500" />
+              <span>Butuh Bantuan Langsung?</span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+              Jika Anda memiliki masalah khusus atau pertanyaan langsung mengenai pengerjaan teknisi, silakan hubungi tim CS kami via WhatsApp.
+            </p>
+            <a
+              href="https://wa.me/6281200000000?text=Halo%20Admin%20OMEANFIX,%20saya%20butuh%20bantuan%20terkait%20jasa%20atau%20suku%20cadang."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-600/20 active:scale-95 transition-transform flex items-center justify-center gap-2"
+            >
+              Hubungi CS via WhatsApp
+            </a>
+          </div>
         </div>
       );
     }
@@ -1776,7 +2080,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-[24px] shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-[24px] shadow-sm border-0 overflow-hidden">
           {/* TEMA / MODE GELAP & TERANG TOGGLE */}
           <div className="p-4 px-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
             <div className="flex items-center gap-3.5">
@@ -1834,12 +2138,34 @@ export default function App() {
             <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600" />
           </button>
 
+          <button onClick={() => setProfileStep('faq_jasa')} className="w-full flex items-center justify-between p-4 px-5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border-b border-slate-100 dark:border-slate-800/80 text-left outline-none active:bg-slate-100 dark:active:bg-slate-800">
+            <div className="flex items-center gap-3.5">
+              <div className="p-2.5 bg-violet-50 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400 rounded-xl"><HelpCircle className="w-5 h-5" /></div>
+              <div>
+                <span className="text-[14px] font-bold text-slate-800 dark:text-slate-100 block">F.A.Q Jasa & Suku Cadang</span>
+                <span className="text-[11px] text-slate-400 dark:text-slate-400">Tanya jawab seputar teknisi & sparepart</span>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600" />
+          </button>
+          
           <button onClick={() => setProfileStep('help_center')} className="w-full flex items-center justify-between p-4 px-5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border-b border-slate-100 dark:border-slate-800/80 text-left outline-none active:bg-slate-100 dark:active:bg-slate-800">
             <div className="flex items-center gap-3.5">
               <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-xl"><HelpCircle className="w-5 h-5" /></div>
               <div>
                 <span className="text-[14px] font-bold text-slate-800 dark:text-slate-100 block">Pusat Bantuan</span>
                 <span className="text-[11px] text-slate-400 dark:text-slate-400">Tutorial & bantuan teknis langsung</span>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600" />
+          </button>
+
+          <button onClick={() => setIsPrivacyOpen(true)} className="w-full flex items-center justify-between p-4 px-5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border-b border-slate-100 dark:border-slate-800/80 text-left outline-none active:bg-slate-100 dark:active:bg-slate-800">
+            <div className="flex items-center gap-3.5">
+              <div className="p-2.5 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-xl"><ShieldCheck className="w-5 h-5" /></div>
+              <div>
+                <span className="text-[14px] font-bold text-slate-800 dark:text-slate-100 block">Kebijakan Privasi</span>
+                <span className="text-[11px] text-slate-400 dark:text-slate-400">Perlindungan data & privasi Anda</span>
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600" />
@@ -2251,8 +2577,9 @@ export default function App() {
         </div>
       )}
 
-      <BookingModal isOpen={isBookingOpen} onClose={() => setIsBookingOpen(false)} selectedCategory={selectedCategory} />
+      <BookingModal isOpen={isBookingOpen} onClose={() => setIsBookingOpen(false)} selectedCategory={selectedCategory} onOpenPrivacy={() => setIsPrivacyOpen(true)} />
       <HelpGuideModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
+      <PrivacyPolicyModal isOpen={isPrivacyOpen} onClose={() => setIsPrivacyOpen(false)} />
     </div>
   );
 }

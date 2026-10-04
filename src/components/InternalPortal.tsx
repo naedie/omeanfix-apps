@@ -4,7 +4,8 @@ import {
   BarChart3, Settings, Trash2, Edit3, Box, Megaphone, 
   Loader2, Hash, Award, UserPlus, Users, Search, Mail, Phone, User,
   Wind, Car, ShieldCheck, Wrench, Snowflake, Truck, Zap, Smartphone, CheckCircle2, Ticket, QrCode, Printer, Plus, ChevronLeft, ChevronRight, Calendar, Camera, Home, MessageCircle, ChevronDown, ChevronUp, XCircle, Wallet, TrendingUp, TrendingDown, DollarSign, CreditCard,
-  Sun, Moon, Database, AlertTriangle, ShieldAlert, Download, FileSpreadsheet, Filter, HelpCircle
+  Sun, Moon, Database, AlertTriangle, ShieldAlert, Download, FileSpreadsheet, Filter, HelpCircle, AlertCircle,
+  Sparkles, MapPin, Lock, BookOpen
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { supabase } from '../supabase';
@@ -55,6 +56,21 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
   const [vouchers, setVouchers] = useState<any[]>([]);
   const [customersData, setCustomersData] = useState<any[]>([]);
   const [ledgerData, setLedgerData] = useState<any[]>([]);
+
+  // 2B. CMS TEKS INFORMASI & DOKUMEN (app_information_docs)
+  const [appDocs, setAppDocs] = useState<any[]>([]);
+  const [settingSubTab, setSettingSubTab] = useState<'pemeliharaan' | 'cms_konten'>('pemeliharaan');
+  const [cmsDocType, setCmsDocType] = useState<'privacy' | 'help_center' | 'faq'>('privacy');
+  const [isCmsModalOpen, setIsCmsModalOpen] = useState(false);
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [docTitle, setDocTitle] = useState('');
+  const [docSummary, setDocSummary] = useState('');
+  const [docIcon, setDocIcon] = useState('FileText');
+  const [docDetailsText, setDocDetailsText] = useState('');
+  const [docContent, setDocContent] = useState('');
+  const [docOrder, setDocOrder] = useState('1');
+  const [docIsActive, setDocIsActive] = useState(true);
+  const [isSubmittingCms, setIsSubmittingCms] = useState(false);
 
   // 3. UI NOTIFICATIONS & MODALS
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -806,7 +822,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
   const fetchData = async () => {
     setIsRefreshing(true);
     try {
-      const [resCat, resUnit, resBanner, resPart, resOrders, resSpcCat, resSpcSubs, resVouchers, resCustomers, resLedger] = await Promise.all([
+      const [resCat, resUnit, resBanner, resPart, resOrders, resSpcCat, resSpcSubs, resVouchers, resCustomers, resLedger, resAppDocs] = await Promise.all([
         supabase.from('service_categories').select('*').order('id', { ascending: true }),
         supabase.from('services').select('*').order('id', { ascending: false }),
         supabase.from('banners').select('*').order('id', { ascending: false }),
@@ -816,7 +832,8 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
         supabase.from('special_service_subscriptions').select('*').order('created_at', { ascending: false }),
         supabase.from('vouchers_promos').select('*').order('id', { ascending: false }),
         supabase.from('customers').select('*').order('created_at', { ascending: false }),
-        supabase.from('financial_ledger').select('*').order('created_at', { ascending: false })
+        supabase.from('financial_ledger').select('*').order('created_at', { ascending: false }),
+        Promise.resolve(supabase.from('app_information_docs').select('*').order('display_order', { ascending: true })).catch(() => ({ data: null }))
       ]);
 
       if (resCat.data) setCategories(resCat.data);
@@ -829,6 +846,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
       if (resVouchers.data) setVouchers(resVouchers.data);
       if (resCustomers.data) setCustomersData(resCustomers.data);
       if (resLedger.data) setLedgerData(resLedger.data);
+      if (resAppDocs && resAppDocs.data) setAppDocs(resAppDocs.data);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -1141,65 +1159,63 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
         
       if (updateErr) throw updateErr;
       
-      // Cek ledger
+      // Bersihkan catatan ledger terdahulu (termasuk DP sementara) untuk menghindari duplikasi atau skip pemecahan invoice
       const orderRef = String(ord.id);
-      const { data: exist } = await supabase
+      await supabase
         .from('financial_ledger')
-        .select('id')
+        .delete()
         .eq('reference_order_id', orderRef);
         
-      if (!exist || exist.length === 0) {
-        const payloads = [];
-        const cName = ord.customer_name || 'Pelanggan';
-        const nominalJasa = Number(invData?.j || invData?.jasa || invData?.J || 0);
-        const nominalPart = Number(invData?.p || invData?.part || invData?.P || 0);
-        const nominalLayanan = Number(invData?.l || invData?.layanan || invData?.L || 0);
-        const totalInv = Number(invData?.t || invData?.total || invData?.T || (nominalJasa + nominalPart + nominalLayanan));
-        
-        if (nominalJasa > 0) {
-          payloads.push({
-            transaction_type: 'PEMASUKAN',
-            category: 'Jasa Servis',
-            amount: nominalJasa,
-            description: `Pemasukan Jasa Servis #${ord.order_code || orderRef.slice(0, 8)} - ${cName}`,
-            reference_order_id: orderRef,
-            is_settled: true
-          });
-        }
-        if (nominalPart > 0) {
-          payloads.push({
-            transaction_type: 'PEMASUKAN',
-            category: 'Penjualan Sparepart',
-            amount: nominalPart,
-            description: `Pemasukan Sparepart #${ord.order_code || orderRef.slice(0, 8)} - ${cName}`,
-            reference_order_id: orderRef,
-            is_settled: true
-          });
-        }
-        if (nominalLayanan > 0) {
-          payloads.push({
-            transaction_type: 'PEMASUKAN',
-            category: 'Layanan Ekstra',
-            amount: nominalLayanan,
-            description: `Pemasukan Layanan #${ord.order_code || orderRef.slice(0, 8)} - ${cName}`,
-            reference_order_id: orderRef,
-            is_settled: true
-          });
-        }
-        if (payloads.length === 0 && totalInv > 0) {
-          payloads.push({
-            transaction_type: 'PEMASUKAN',
-            category: 'Jasa Servis',
-            amount: totalInv,
-            description: `Pemasukan Tagihan Pesanan #${ord.order_code || orderRef.slice(0, 8)} - ${cName}`,
-            reference_order_id: orderRef,
-            is_settled: true
-          });
-        }
-        
-        if (payloads.length > 0) {
-          await supabase.from('financial_ledger').insert(payloads);
-        }
+      const payloads = [];
+      const cName = ord.customer_name || 'Pelanggan';
+      const nominalJasa = Number(invData?.j || invData?.jasa || invData?.J || ord.base_fee || 0);
+      const nominalPart = Number(invData?.p || invData?.part || invData?.P || ord.material_fee || 0);
+      const nominalLayanan = Number(invData?.l || invData?.layanan || invData?.L || ord.transport_fee || 0);
+      const totalInv = Number(invData?.t || invData?.total || invData?.T || ord.total_amount || (nominalJasa + nominalPart + nominalLayanan));
+      
+      if (nominalJasa > 0) {
+        payloads.push({
+          transaction_type: 'PEMASUKAN',
+          category: 'Jasa Servis',
+          amount: nominalJasa,
+          description: `Pemasukan Jasa Servis #${ord.order_code || orderRef.slice(0, 8)} - ${cName}`,
+          reference_order_id: orderRef,
+          is_settled: true
+        });
+      }
+      if (nominalPart > 0) {
+        payloads.push({
+          transaction_type: 'PEMASUKAN',
+          category: 'Penjualan Sparepart',
+          amount: nominalPart,
+          description: `Pemasukan Sparepart #${ord.order_code || orderRef.slice(0, 8)} - ${cName}`,
+          reference_order_id: orderRef,
+          is_settled: true
+        });
+      }
+      if (nominalLayanan > 0) {
+        payloads.push({
+          transaction_type: 'PEMASUKAN',
+          category: 'Layanan Ekstra',
+          amount: nominalLayanan,
+          description: `Pemasukan Layanan #${ord.order_code || orderRef.slice(0, 8)} - ${cName}`,
+          reference_order_id: orderRef,
+          is_settled: true
+        });
+      }
+      if (payloads.length === 0 && totalInv > 0) {
+        payloads.push({
+          transaction_type: 'PEMASUKAN',
+          category: 'Jasa Servis',
+          amount: totalInv,
+          description: `Pemasukan Tagihan Pesanan #${ord.order_code || orderRef.slice(0, 8)} - ${cName}`,
+          reference_order_id: orderRef,
+          is_settled: true
+        });
+      }
+      
+      if (payloads.length > 0) {
+        await supabase.from('financial_ledger').insert(payloads);
       }
       
       showToastMsg("Pembayaran LUNAS! Pesanan selesai & otomatis masuk Buku Kas.", "success");
@@ -1648,9 +1664,66 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
     
     ledgerData.forEach(trx => {
       if (trx.transaction_type === 'PEMASUKAN' && trx.is_settled) {
-        if (trx.category === 'Jasa Servis') omzetJasa += Number(trx.amount || 0);
-        if (trx.category === 'Penjualan Sparepart' || trx.category === 'Sparepart') omzetSparepart += Number(trx.amount || 0);
-        if (trx.category === 'Layanan Ekstra' || trx.category === 'Layanan') omzetLayanan += Number(trx.amount || 0);
+        const cat = trx.category || '';
+        if (cat === 'Jasa Servis' || cat === 'Uang Muka (DP) Servis') {
+          omzetJasa += Number(trx.amount || 0);
+        } else if (cat === 'Penjualan Sparepart' || cat === 'Sparepart') {
+          omzetSparepart += Number(trx.amount || 0);
+        } else {
+          omzetLayanan += Number(trx.amount || 0);
+        }
+      }
+    });
+
+    // Hitung statistik Alasan Pembatalan
+    const cancelReasonsCount: Record<string, number> = {
+      "Sudah teratasi": 0,
+      "Menunggu lama": 0,
+      "Harga tidak sesuai": 0,
+      "Salah Opsi": 0,
+      "Lainnya": 0
+    };
+    
+    // Hitung statistik Review Kepuasan Pelanggan
+    const reviewsCount: Record<string, number> = {
+      "Suka Sekali": 0,
+      "Suka": 0,
+      "Sedang": 0,
+      "Kecewa": 0
+    };
+
+    let totalCanceledWithReason = 0;
+    let totalReviewed = 0;
+
+    adminOrders.forEach(ord => {
+      const noteStr = ord.note || ord.complaint || ord.complaint_description || '';
+      const st = (ord.status || ord.order_status || '').toLowerCase();
+      
+      // Jika Batal, cari ALASAN_BATAL
+      if (['dibatalkan', 'batal'].includes(st)) {
+        const cancelMatch = noteStr.match(/\[ALASAN_BATAL:\s*([^\]]+)\]/);
+        if (cancelMatch && cancelMatch[1]) {
+          const reason = cancelMatch[1].trim();
+          if (cancelReasonsCount[reason] !== undefined) {
+            cancelReasonsCount[reason]++;
+            totalCanceledWithReason++;
+          } else {
+            cancelReasonsCount["Lainnya"]++;
+            totalCanceledWithReason++;
+          }
+        }
+      }
+      
+      // Jika Selesai/Lunas, cari REVIEW
+      if (['selesai', 'lunas'].includes(st)) {
+        const reviewMatch = noteStr.match(/\[REVIEW:\s*([^\]]+)\]/);
+        if (reviewMatch && reviewMatch[1]) {
+          const rating = reviewMatch[1].trim();
+          if (reviewsCount[rating] !== undefined) {
+            reviewsCount[rating]++;
+            totalReviewed++;
+          }
+        }
       }
     });
 
@@ -1690,19 +1763,33 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
           <>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white p-4 rounded-[20px] border border-slate-100 shadow-sm relative overflow-hidden">
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2">
-                  <TrendingUp className="w-4 h-4" />
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-2">
+                  <Wrench className="w-4 h-4" />
                 </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Omset / Masuk</span>
-                <span className="text-[16px] font-black text-slate-900 block mt-0.5">Rp {totalIncome.toLocaleString('id-ID')}</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Omzet Layanan Jasa</span>
+                <span className="text-[15px] font-black text-slate-900 block mt-0.5">Rp {omzetJasa.toLocaleString('id-ID')}</span>
+              </div>
+              <div className="bg-white p-4 rounded-[20px] border border-slate-100 shadow-sm relative overflow-hidden">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2">
+                  <Package className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Omzet Penjualan Barang</span>
+                <span className="text-[15px] font-black text-slate-900 block mt-0.5">Rp {omzetSparepart.toLocaleString('id-ID')}</span>
+              </div>
+              <div className="bg-white p-4 rounded-[20px] border border-slate-100 shadow-sm relative overflow-hidden">
+                <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center mb-2">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Omzet Layanan Lainnya</span>
+                <span className="text-[15px] font-black text-slate-900 block mt-0.5">Rp {omzetLayanan.toLocaleString('id-ID')}</span>
               </div>
               <div className="bg-white p-4 rounded-[20px] border border-slate-100 shadow-sm relative overflow-hidden">
                 <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2">
-                  <Wallet className="w-4 h-4" />
+                  <TrendingUp className="w-4 h-4" />
                 </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Laba Bersih</span>
-                <span className={`text-[16px] font-black block mt-0.5 ${netProfit >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
-                  Rp {netProfit.toLocaleString('id-ID')}
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Pendapatan</span>
+                <span className="text-[15px] font-black text-indigo-600 block mt-0.5">
+                  Rp {totalIncome.toLocaleString('id-ID')}
                 </span>
               </div>
             </div>
@@ -1897,23 +1984,73 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-sm">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-600 mb-3">Evaluasi Status Pesanan (Total)</h3>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold w-12 text-slate-600">Selesai</span>
-                  <div className="flex-1 bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner">
-                    <div className="bg-emerald-500 h-full rounded-full" style={{width: `${(completedOrdersCount / (totalOrdersCount || 1)) * 100}%`}}></div>
-                  </div>
-                  <span className="text-[11px] font-black text-slate-800 w-8 text-right">{completedOrdersCount}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold w-12 text-slate-600">Batal</span>
-                  <div className="flex-1 bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner">
-                    <div className="bg-rose-500 h-full rounded-full" style={{width: `${(cancelledOrdersCount / (totalOrdersCount || 1)) * 100}%`}}></div>
-                  </div>
-                  <span className="text-[11px] font-black text-slate-800 w-8 text-right">{cancelledOrdersCount}</span>
-                </div>
+            {/* KARTU EVALUASI KEPUASAN (SELESAI) */}
+            <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-sm space-y-3">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                  <Award className="w-4 h-4 text-amber-500 shrink-0" /> Evaluasi Kepuasan Pelanggan (Selesai)
+                </h3>
+                <span className="text-[10px] font-bold text-slate-400">Total Review: {totalReviewed}</span>
+              </div>
+              
+              <div className="space-y-2.5 pt-1">
+                {[
+                  { key: 'Suka Sekali', label: 'Suka Sekali', emoji: '😍', color: 'bg-emerald-500' },
+                  { key: 'Suka', label: 'Suka', emoji: '🙂', color: 'bg-blue-500' },
+                  { key: 'Sedang', label: 'Sedang', emoji: '😐', color: 'bg-amber-500' },
+                  { key: 'Kecewa', label: 'Kecewa', emoji: '😞', color: 'bg-rose-500' }
+                ].map((item) => {
+                  const count = reviewsCount[item.key] || 0;
+                  const pct = totalReviewed > 0 ? (count / totalReviewed) * 100 : 0;
+                  return (
+                    <div key={item.key} className="space-y-1">
+                      <div className="flex justify-between items-center text-[11px] font-bold">
+                        <span className="text-slate-600 flex items-center gap-1">
+                          <span>{item.emoji}</span>
+                          <span>{item.label}</span>
+                        </span>
+                        <span className="text-slate-800">{count} ({pct.toFixed(0)}%)</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden shadow-inner">
+                        <div className={`${item.color} h-full rounded-full transition-all`} style={{ width: `${pct}%` }}></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* KARTU EVALUASI ALASAN PEMBATALAN (BATAL) */}
+            <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-sm space-y-3">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                  <XCircle className="w-4 h-4 text-rose-500 shrink-0" /> Evaluasi Alasan Pembatalan (Batal)
+                </h3>
+                <span className="text-[10px] font-bold text-slate-400">Total Alasan: {totalCanceledWithReason}</span>
+              </div>
+
+              <div className="space-y-2.5 pt-1">
+                {[
+                  { key: 'Sudah teratasi', label: 'Kendala teratasi sendiri', color: 'bg-rose-500' },
+                  { key: 'Menunggu lama', label: 'Menunggu terlalu lama', color: 'bg-rose-500' },
+                  { key: 'Harga tidak sesuai', label: 'Harga tidak sesuai', color: 'bg-rose-500' },
+                  { key: 'Salah Opsi', label: 'Salah pilih opsi layanan', color: 'bg-rose-500' },
+                  { key: 'Lainnya', label: 'Lainnya / Berubah pikiran', color: 'bg-rose-500' }
+                ].map((item) => {
+                  const count = cancelReasonsCount[item.key] || 0;
+                  const pct = totalCanceledWithReason > 0 ? (count / totalCanceledWithReason) * 100 : 0;
+                  return (
+                    <div key={item.key} className="space-y-1">
+                      <div className="flex justify-between items-center text-[11px] font-bold">
+                        <span className="text-slate-600">{item.label}</span>
+                        <span className="text-slate-800">{count} ({pct.toFixed(0)}%)</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden shadow-inner">
+                        <div className={`${item.color} h-full rounded-full transition-all`} style={{ width: `${pct}%` }}></div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -2031,6 +2168,14 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                 invoiceData.layanan = invoiceData.l || invoiceData.layanan || 0;
                 invoiceData.total = invoiceData.t || invoiceData.total || (invoiceData.jasa + invoiceData.part + invoiceData.layanan);
                 invoiceData.desc = invoiceData.d || invoiceData.desc || '-';
+              } else if (Number(ord.total_amount || ord.base_fee || ord.material_fee || ord.transport_fee) > 0) {
+                invoiceData = {
+                  jasa: Number(ord.base_fee) || 0,
+                  part: Number(ord.material_fee) || 0,
+                  layanan: Number(ord.transport_fee) || 0,
+                  total: Number(ord.total_amount) || 0,
+                  desc: ord.complaint_description || ord.complaint || '-'
+                };
               }
               
               const estMatch = rawNote.match(/\[ESTIMASI:\s*([^\]]+)\]/); 
@@ -4950,9 +5095,170 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
     );
   };
 
+  // ==========================================
+  // --- CMS TEKS INFORMASI & DOKUMEN ---
+  // ==========================================
+  const renderCmsIcon = (iconName: string, className = "w-4 h-4") => {
+    switch (iconName) {
+      case 'ShieldCheck': return <ShieldCheck className={className} />;
+      case 'FileText': return <FileText className={className} />;
+      case 'Wrench': return <Wrench className={className} />;
+      case 'Calendar': return <Calendar className={className} />;
+      case 'Truck': return <Truck className={className} />;
+      case 'Sparkles': return <Sparkles className={className} />;
+      case 'MapPin': return <MapPin className={className} />;
+      case 'Lock': return <Lock className={className} />;
+      case 'User': return <User className={className} />;
+      case 'CreditCard': return <CreditCard className={className} />;
+      case 'HelpCircle': return <HelpCircle className={className} />;
+      case 'BookOpen': return <BookOpen className={className} />;
+      case 'CheckCircle2': return <CheckCircle2 className={className} />;
+      case 'AlertCircle': return <AlertCircle className={className} />;
+      case 'Zap': return <Zap className={className} />;
+      case 'Car': return <Car className={className} />;
+      case 'Smartphone': return <Smartphone className={className} />;
+      case 'Ticket': return <Ticket className={className} />;
+      case 'Award': return <Award className={className} />;
+      default: return <FileText className={className} />;
+    }
+  };
+
+  const CMS_ICON_LIST = [
+    'FileText', 'ShieldCheck', 'Wrench', 'Calendar', 'Truck', 'Sparkles', 
+    'MapPin', 'Lock', 'User', 'CreditCard', 'HelpCircle', 'BookOpen', 
+    'CheckCircle2', 'Zap', 'Car', 'Smartphone'
+  ];
+
+  const openCreateCmsDoc = () => {
+    setEditingDocId(null);
+    setDocTitle('');
+    setDocSummary('');
+    setDocIcon(cmsDocType === 'privacy' ? 'ShieldCheck' : cmsDocType === 'help_center' ? 'BookOpen' : 'HelpCircle');
+    setDocDetailsText('');
+    setDocContent('');
+    const sameTypeDocs = appDocs.filter(d => (d.doc_type || 'privacy') === cmsDocType);
+    setDocOrder(String(sameTypeDocs.length + 1));
+    setDocIsActive(true);
+    setIsCmsModalOpen(true);
+  };
+
+  const openEditCmsDoc = (doc: any) => {
+    setEditingDocId(doc.id);
+    setDocTitle(doc.title || '');
+    setDocSummary(doc.summary || '');
+    setDocIcon(doc.icon_name || doc.icon || 'FileText');
+    const dText = Array.isArray(doc.details) 
+      ? doc.details.join('\n') 
+      : (typeof doc.details === 'string' ? doc.details : '');
+    setDocDetailsText(dText);
+    setDocContent(doc.content || '');
+    setDocOrder(String(doc.display_order ?? 1));
+    setDocIsActive(doc.is_active ?? true);
+    setIsCmsModalOpen(true);
+  };
+
+  const handleSaveCmsDoc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!docTitle.trim() || !docSummary.trim()) {
+      showToastMsg('Judul dan ringkasan wajib diisi!', 'error');
+      return;
+    }
+    setIsSubmittingCms(true);
+    try {
+      const detailsArray = docDetailsText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+      const payload = {
+        doc_type: cmsDocType,
+        title: docTitle.trim(),
+        summary: docSummary.trim(),
+        icon_name: docIcon,
+        icon: docIcon,
+        details: detailsArray,
+        content: docContent.trim() || null,
+        display_order: parseInt(docOrder) || 1,
+        is_active: docIsActive
+      };
+
+      if (editingDocId) {
+        const { error } = await supabase
+          .from('app_information_docs')
+          .update(payload)
+          .eq('id', editingDocId);
+        if (error) throw error;
+        showToastMsg('Butir konten berhasil diperbarui!', 'success');
+      } else {
+        const { error } = await supabase
+          .from('app_information_docs')
+          .insert([payload]);
+        if (error) throw error;
+        showToastMsg('Butir konten baru berhasil ditambahkan!', 'success');
+      }
+
+      setIsCmsModalOpen(false);
+      await fetchData();
+    } catch (err: any) {
+      console.error('Gagal menyimpan konten CMS:', err);
+      showToastMsg('Gagal menyimpan konten: ' + (err.message || 'Terjadi kesalahan database'), 'error');
+    } finally {
+      setIsSubmittingCms(false);
+    }
+  };
+
+  const handleToggleCmsActive = async (doc: any) => {
+    try {
+      const newStatus = !doc.is_active;
+      setAppDocs(prev => prev.map(d => d.id === doc.id ? { ...d, is_active: newStatus } : d));
+      const { error } = await supabase
+        .from('app_information_docs')
+        .update({ is_active: newStatus })
+        .eq('id', doc.id);
+      if (error) throw error;
+      showToastMsg(`Konten "${doc.title}" diubah menjadi ${newStatus ? 'Aktif' : 'Nonaktif'}`, 'info');
+    } catch (err: any) {
+      console.error('Gagal mengubah status aktif CMS:', err);
+      showToastMsg('Gagal ubah status: ' + err.message, 'error');
+      fetchData();
+    }
+  };
+
+  const handleDeleteCmsDoc = (doc: any) => {
+    setConfirmModal({
+      title: 'Hapus Butir Konten?',
+      message: `Apakah Anda yakin ingin menghapus konten "${doc.title}"?\n\nKonten yang dihapus tidak akan ditampilkan lagi kepada pengguna di aplikasi.`,
+      confirmLabel: 'Hapus Konten',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from('app_information_docs')
+            .delete()
+            .eq('id', doc.id);
+          if (error) throw error;
+          showToastMsg('Butir konten berhasil dihapus!', 'success');
+          await fetchData();
+        } catch (err: any) {
+          console.error('Gagal menghapus konten CMS:', err);
+          showToastMsg('Gagal menghapus konten: ' + err.message, 'error');
+        }
+      }
+    });
+  };
+
   const renderPengaturanSistem = () => {
     const orderLedgerCount = ledgerData.filter(l => Boolean(l.reference_order_id)).length;
     const manualLedgerCount = ledgerData.filter(l => !l.reference_order_id).length;
+
+    const filteredCmsDocs = appDocs.filter(d => (d.doc_type || 'privacy') === cmsDocType);
+
+    const docTypeLabels: Record<string, { title: string; subtitle: string; icon: any }> = {
+      privacy: { title: 'Kebijakan Privasi & Data', subtitle: 'Poin transparansi data & perlindungan pelanggan', icon: ShieldCheck },
+      help_center: { title: 'Pusat Bantuan & Tutorial', subtitle: 'Langkah Onboarding & panduan pemesanan servis', icon: BookOpen },
+      faq: { title: 'F.A.Q Jasa & Suku Cadang', subtitle: 'Pertanyaan seputar teknisi, garansi & sparepart', icon: HelpCircle }
+    };
+    const currentDocTypeMeta = docTypeLabels[cmsDocType] || docTypeLabels.privacy;
 
     return (
       <div className="animate-in fade-in pb-10 space-y-5 text-slate-800 dark:text-slate-100">
@@ -4963,111 +5269,508 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
           </div>
           <div>
             <h3 className="font-extrabold text-[16px] text-slate-800 dark:text-white tracking-tight">Pengaturan Sistem</h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Konfigurasi aplikasi, status database, & utilitas data</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Konfigurasi aplikasi, teks CMS, & status database</p>
           </div>
         </div>
 
-        {/* Status Database & Ringkasan Data Master */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <div className="flex items-center gap-2">
-              <Database className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <h4 className="font-extrabold text-[13px] text-slate-800 dark:text-white">Status Database & Data Master</h4>
-            </div>
-            <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold rounded-full border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> Terhubung
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Kategori Jasa</span>
-              <span className="text-[15px] font-black text-slate-800 dark:text-white">{categories.length} data</span>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Objek / Unit</span>
-              <span className="text-[15px] font-black text-slate-800 dark:text-white">{serviceUnits.length} data</span>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Stok Sparepart</span>
-              <span className="text-[15px] font-black text-slate-800 dark:text-white">{spareParts.length} item</span>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Promo / Voucher</span>
-              <span className="text-[15px] font-black text-slate-800 dark:text-white">{vouchers.length} aktif</span>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Banner Beranda</span>
-              <span className="text-[15px] font-black text-slate-800 dark:text-white">{savedBanners.length} slide</span>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Pelanggan</span>
-              <span className="text-[15px] font-black text-slate-800 dark:text-white">{customersData.length} akun</span>
-            </div>
-          </div>
+        {/* Segmented Control / Tab Switcher */}
+        <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+          <button
+            type="button"
+            onClick={() => setSettingSubTab('pemeliharaan')}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-[12px] font-extrabold flex items-center justify-center gap-2 transition-all outline-none ${
+              settingSubTab === 'pemeliharaan'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <Database className="w-4 h-4 text-blue-500" />
+            <span>Pemeliharaan & Data</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSettingSubTab('cms_konten')}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-[12px] font-extrabold flex items-center justify-center gap-2 transition-all outline-none ${
+              settingSubTab === 'cms_konten'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <BookOpen className="w-4 h-4 text-indigo-500" />
+            <span>Teks Informasi & Panduan (CMS)</span>
+          </button>
         </div>
 
-        {/* Section Reset Data Pesanan Uji Coba */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-rose-200 dark:border-rose-900/60 shadow-sm space-y-4 transition-colors relative overflow-hidden">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 shrink-0">
-              <Trash2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-[14px] text-slate-900 dark:text-white">Pembersihan Data Uji Coba</h4>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Kelola & kosongkan data pesanan dan kas simulasi</p>
-            </div>
-          </div>
+        {/* SUBTAB 1: PEMELIHARAAN & DATA */}
+        {settingSubTab === 'pemeliharaan' && (
+          <div className="space-y-5 animate-in fade-in duration-200">
+            {/* Status Database & Ringkasan Data Master */}
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <Database className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <h4 className="font-extrabold text-[13px] text-slate-800 dark:text-white">Status Database & Data Master</h4>
+                </div>
+                <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold rounded-full border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> Terhubung
+                </span>
+              </div>
 
-          {/* Info Cards */}
-          <div className="space-y-2.5">
-            <div className="p-3.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/50 flex items-start gap-2.5">
-              <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-              <div className="text-[11px] text-rose-800 dark:text-rose-300 leading-relaxed font-medium">
-                <span className="font-bold block text-rose-900 dark:text-rose-200 mb-0.5">Data yang akan Dikosongkan:</span>
-                • <strong>{adminOrders.length} Pesanan</strong> pada tabel <code className="bg-rose-100 dark:bg-rose-900/60 px-1 py-0.5 rounded font-mono text-[10px]">orders</code><br />
-                • <strong>{orderLedgerCount} Catatan Arus Kas Pesanan</strong> pada tabel <code className="bg-rose-100 dark:bg-rose-900/60 px-1 py-0.5 rounded font-mono text-[10px]">financial_ledger</code>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Kategori Jasa</span>
+                  <span className="text-[15px] font-black text-slate-800 dark:text-white">{categories.length} data</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Objek / Unit</span>
+                  <span className="text-[15px] font-black text-slate-800 dark:text-white">{serviceUnits.length} data</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Stok Sparepart</span>
+                  <span className="text-[15px] font-black text-slate-800 dark:text-white">{spareParts.length} item</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Promo / Voucher</span>
+                  <span className="text-[15px] font-black text-slate-800 dark:text-white">{vouchers.length} aktif</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Banner Beranda</span>
+                  <span className="text-[15px] font-black text-slate-800 dark:text-white">{savedBanners.length} slide</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Dokumen CMS</span>
+                  <span className="text-[15px] font-black text-slate-800 dark:text-white">{appDocs.length} butir</span>
+                </div>
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/50 flex items-start gap-2.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-              <div className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed font-medium">
-                <span className="font-bold block text-emerald-900 dark:text-emerald-200 mb-0.5">Data Terlindungi (TIDAK Dihapus):</span>
-                Seluruh data master (Kategori, Objek/Unit, Sparepart, Banner, Voucher, Pelanggan) & <strong>{manualLedgerCount} Kas Manual Operasional</strong> tetap aman 100%.
+            {/* Section Reset Data Pesanan Uji Coba */}
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-rose-200 dark:border-rose-900/60 shadow-sm space-y-4 transition-colors relative overflow-hidden">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-[14px] text-slate-900 dark:text-white">Pembersihan Data Uji Coba</h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Kelola & kosongkan data pesanan dan kas simulasi</p>
+                </div>
+              </div>
+
+              {/* Info Cards */}
+              <div className="space-y-2.5">
+                <div className="p-3.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/50 flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-rose-800 dark:text-rose-300 leading-relaxed font-medium">
+                    <span className="font-bold block text-rose-900 dark:text-rose-200 mb-0.5">Data yang akan Dikosongkan:</span>
+                    • <strong>{adminOrders.length} Pesanan</strong> pada tabel <code className="bg-rose-100 dark:bg-rose-900/60 px-1 py-0.5 rounded font-mono text-[10px]">orders</code><br />
+                    • <strong>{orderLedgerCount} Catatan Arus Kas Pesanan</strong> pada tabel <code className="bg-rose-100 dark:bg-rose-900/60 px-1 py-0.5 rounded font-mono text-[10px]">financial_ledger</code>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/50 flex items-start gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed font-medium">
+                    <span className="font-bold block text-emerald-900 dark:text-emerald-200 mb-0.5">Data Terlindungi (TIDAK Dihapus):</span>
+                    Seluruh data master (Kategori, Objek/Unit, Sparepart, Banner, Voucher, Pelanggan, Dokumen CMS) & <strong>{manualLedgerCount} Kas Manual Operasional</strong> tetap aman 100%.
+                  </div>
+                </div>
+              </div>
+
+              {/* Tombol Aksi Reset */}
+              <div className="pt-2">
+                <button
+                  onClick={(e) => {
+                    triggerRipple(e);
+                    confirmResetOrders();
+                  }}
+                  disabled={isResettingOrders || (adminOrders.length === 0 && orderLedgerCount === 0)}
+                  className="ripple-btn w-full py-4 px-5 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white font-bold rounded-2xl text-[13px] shadow-lg shadow-rose-600/20 disabled:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 outline-none cursor-pointer disabled:cursor-not-allowed"
+                >
+                  {isResettingOrders ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Mereset Data Pesanan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      <span>Reset Semua Data Pesanan & Kas Uji Coba</span>
+                    </>
+                  )}
+                </button>
+                {adminOrders.length === 0 && orderLedgerCount === 0 && (
+                  <p className="text-center text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-2">
+                    Data pesanan dan arus kas pesanan saat ini sudah kosong.
+                  </p>
+                )}
               </div>
             </div>
           </div>
+        )}
 
-          {/* Tombol Aksi Reset */}
-          <div className="pt-2">
-            <button
-              onClick={(e) => {
-                triggerRipple(e);
-                confirmResetOrders();
-              }}
-              disabled={isResettingOrders || (adminOrders.length === 0 && orderLedgerCount === 0)}
-              className="ripple-btn w-full py-4 px-5 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white font-bold rounded-2xl text-[13px] shadow-lg shadow-rose-600/20 disabled:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 outline-none cursor-pointer disabled:cursor-not-allowed"
-            >
-              {isResettingOrders ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Mereset Data Pesanan...</span>
-                </>
+        {/* SUBTAB 2: CMS TEKS INFORMASI & PANDUAN */}
+        {settingSubTab === 'cms_konten' && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Filter Pill Menu Dokumen */}
+            <div className="flex gap-2 p-1.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-x-auto scrollbar-hide">
+              {[
+                { id: 'privacy', label: 'Kebijakan Privasi', icon: ShieldCheck },
+                { id: 'help_center', label: 'Pusat Bantuan', icon: BookOpen },
+                { id: 'faq', label: 'F.A.Q', icon: HelpCircle }
+              ].map(tab => {
+                const Icon = tab.icon;
+                const isSelected = cmsDocType === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setCmsDocType(tab.id as any)}
+                    className={`flex-1 py-2 px-3 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap outline-none ${
+                      isSelected
+                        ? 'bg-slate-900 dark:bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Header Kategori Dokumen Aktif & Tombol Tambah */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-[22px] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-extrabold text-[14px] text-slate-800 dark:text-white truncate">
+                    {currentDocTypeMeta.title}
+                  </h4>
+                  <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 text-[10px] font-black rounded-full shrink-0">
+                    {filteredCmsDocs.length} Butir
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
+                  {currentDocTypeMeta.subtitle}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={openCreateCmsDoc}
+                className="px-3.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-[11.5px] shadow-sm shadow-blue-600/30 flex items-center gap-1.5 active:scale-95 transition-transform shrink-0 outline-none"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Tambah Butir</span>
+              </button>
+            </div>
+
+            {/* Daftar Kartu Konten CMS */}
+            <div className="space-y-3">
+              {filteredCmsDocs.length === 0 ? (
+                <div className="py-14 text-center bg-white dark:bg-slate-900 rounded-[24px] border border-slate-100 dark:border-slate-800 p-6 space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-slate-700 dark:text-slate-200 text-[13px]">Belum Ada Butir Dokumen</h5>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 max-w-xs mx-auto mt-0.5 font-medium">
+                      Tambahkan butir teks informasi untuk kategori ini agar tersinkronisasi ke aplikasi pelanggan.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openCreateCmsDoc}
+                    className="px-4 py-2 bg-blue-600 text-white text-[11px] font-bold rounded-xl active:scale-95 transition-transform inline-flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah Sekarang</span>
+                  </button>
+                </div>
               ) : (
-                <>
-                  <Trash2 className="w-4 h-4" />
-                  <span>Reset Semua Data Pesanan & Kas Uji Coba</span>
-                </>
+                filteredCmsDocs.map((doc, idx) => {
+                  const detailsList = Array.isArray(doc.details) ? doc.details : [];
+                  const isActive = doc.is_active ?? true;
+
+                  return (
+                    <div
+                      key={doc.id || idx}
+                      className={`p-4 rounded-[22px] border transition-all ${
+                        isActive 
+                          ? 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 shadow-sm' 
+                          : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/40 opacity-70'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className={`p-2.5 rounded-xl shrink-0 ${isActive ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                            {renderCmsIcon(doc.icon_name || doc.icon || 'FileText', 'w-4 h-4')}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[9px] font-black rounded uppercase">
+                                Urutan #{doc.display_order ?? idx + 1}
+                              </span>
+                              <span className={`text-[9.5px] font-bold px-2 py-0.2 rounded-full border ${
+                                isActive 
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' 
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'
+                              }`}>
+                                {isActive ? 'Aktif' : 'Nonaktif'}
+                              </span>
+                            </div>
+                            <h5 className="font-extrabold text-[13px] text-slate-900 dark:text-white tracking-tight leading-snug">
+                              {doc.title}
+                            </h5>
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCmsActive(doc)}
+                            title={isActive ? 'Klik untuk nonaktifkan' : 'Klik untuk aktifkan'}
+                            className={`px-2 py-1 rounded-lg border text-[10px] font-bold transition-colors ${
+                              isActive
+                                ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                            }`}
+                          >
+                            {isActive ? 'Aktif' : 'Off'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openEditCmsDoc(doc)}
+                            className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+                            title="Edit Butir"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCmsDoc(doc)}
+                            className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors"
+                            title="Hapus Butir"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Summary */}
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-medium pl-11 mb-2">
+                        {doc.summary}
+                      </p>
+
+                      {/* Details bullet points if any */}
+                      {detailsList.length > 0 && (
+                        <div className="ml-11 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-1">
+                          <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                            Poin Rincian ({detailsList.length}):
+                          </span>
+                          {detailsList.map((line: string, lIdx: number) => (
+                            <div key={lIdx} className="flex items-start gap-2 text-[10.5px] text-slate-600 dark:text-slate-400">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
+                              <span className="leading-tight">{line}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Content preview if any */}
+                      {doc.content && (
+                        <div className="ml-11 mt-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 text-[10.5px] text-slate-500 dark:text-slate-400 font-mono leading-relaxed line-clamp-3">
+                          {doc.content}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               )}
-            </button>
-            {adminOrders.length === 0 && orderLedgerCount === 0 && (
-              <p className="text-center text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-2">
-                Data pesanan dan arus kas pesanan saat ini sudah kosong.
-              </p>
-            )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* MODAL FORM CMS (SLIDE-UP / POPUP) */}
+        {isCmsModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-slate-900/70 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in" onClick={() => setIsCmsModalOpen(false)}>
+            <div 
+              className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] p-6 max-h-[90vh] flex flex-col shadow-2xl border-t sm:border border-slate-100 dark:border-slate-800 animate-in slide-in-from-bottom-full sm:zoom-in-95 duration-200" 
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header Modal */}
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-[15px] text-slate-900 dark:text-white leading-tight">
+                      {editingDocId ? 'Edit Butir Konten' : 'Tambah Butir Konten Baru'}
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      Kategori: <strong className="uppercase text-blue-600 dark:text-blue-400">{cmsDocType}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCmsModalOpen(false)}
+                  className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Form Body */}
+              <form onSubmit={handleSaveCmsDoc} className="flex-1 overflow-y-auto py-4 space-y-4 pr-1 scrollbar-hide">
+                {/* Judul Konten */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                    Judul Dokumen / Pertanyaan <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Contoh: Apakah teknisi bersertifikasi resmi?"
+                    value={docTitle}
+                    onChange={(e) => setDocTitle(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 rounded-xl text-[12px] font-bold text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Ringkasan Singkat */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                    Ringkasan Singkat (Summary) <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={2}
+                    placeholder="Penjelasan ringkas 1-2 kalimat..."
+                    value={docSummary}
+                    onChange={(e) => setDocSummary(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 rounded-xl text-[12px] font-medium text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 resize-none"
+                  />
+                </div>
+
+                {/* Grid Pilihan Ikon */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">
+                    Pilih Ikon Tampilan
+                  </label>
+                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                    {CMS_ICON_LIST.map((icName) => {
+                      const isSel = docIcon === icName;
+                      return (
+                        <button
+                          key={icName}
+                          type="button"
+                          onClick={() => setDocIcon(icName)}
+                          className={`p-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                            isSel
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm scale-105'
+                              : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-700/80 hover:bg-slate-100'
+                          }`}
+                          title={icName}
+                        >
+                          {renderCmsIcon(icName, 'w-4 h-4')}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Urutan & Status Aktif */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                      Urutan Tampil (Order)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={docOrder}
+                      onChange={(e) => setDocOrder(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 rounded-xl text-[12px] font-bold text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                      Status Publikasi
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setDocIsActive(!docIsActive)}
+                      className={`w-full py-2.5 px-3 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-2 transition-colors ${
+                        docIsActive
+                          ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{docIsActive ? 'Aktif (Tampil)' : 'Nonaktif (Draft)'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Textarea Rincian Poin (Details) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Rincian Poin-Poin (Details)
+                    </label>
+                    <span className="text-[9px] text-slate-400 font-medium">1 baris = 1 poin centang</span>
+                  </div>
+                  <textarea
+                    rows={4}
+                    placeholder="Buka halaman beranda OMEANFIX&#10;Pilih jenis layanan teknisi&#10;Tentukan waktu kedatangan"
+                    value={docDetailsText}
+                    onChange={(e) => setDocDetailsText(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 rounded-xl text-[12px] font-medium text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 resize-none font-mono"
+                  />
+                </div>
+
+                {/* Textarea Konten Naskah Formal (Optional) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Naskah Hukum / Teks Panjang (Opsional)
+                    </label>
+                    <span className="text-[9px] text-slate-400 font-medium">Khusus pasal / teks utuh</span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    placeholder="Contoh: PASAL 1 - PENGUMPULAN DATA: OMEANFIX mengumpulkan data..."
+                    value={docContent}
+                    onChange={(e) => setDocContent(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 rounded-xl text-[12px] font-medium text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 resize-none"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsCmsModalOpen(false)}
+                    className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs active:scale-95 transition-transform"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingCms}
+                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-600/20 active:scale-95 transition-transform flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    {isSubmittingCms ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    <span>{editingDocId ? 'Simpan Perubahan' : 'Terbitkan Konten'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   };

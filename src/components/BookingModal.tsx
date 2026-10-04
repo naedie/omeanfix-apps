@@ -12,9 +12,10 @@ interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedCategory: any | null;
+  onOpenPrivacy?: () => void;
 }
 
-export default function BookingModal({ isOpen, onClose, selectedCategory }: BookingModalProps) {
+export default function BookingModal({ isOpen, onClose, selectedCategory, onOpenPrivacy }: BookingModalProps) {
   const [step, setStep] = useState(1);
   const modalRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -740,6 +741,9 @@ export default function BookingModal({ isOpen, onClose, selectedCategory }: Book
                     >
                       {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>Kirim Pesanan</span>}
                     </button>
+                  </div>
+                  <div className="text-center text-[10px] text-slate-400 font-medium px-2 mt-2 leading-relaxed">
+                    Dengan membuat pesanan, Anda menyetujui Ketentuan Layanan &amp; <button type="button" onClick={onOpenPrivacy} className="text-blue-600 dark:text-blue-400 underline font-bold hover:text-blue-700 active:scale-95 inline-block">Kebijakan Privasi</button> OMEANFIX.
                   </div>
                 </div>
               )}
