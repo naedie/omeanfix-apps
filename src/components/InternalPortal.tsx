@@ -84,6 +84,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
   const [viewPhotoModal, setViewPhotoModal] = useState<string | null>(null);
   const [viewReceiptModal, setViewReceiptModal] = useState<string | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState<any | null>(null);
+  const [adminInvoiceModal, setAdminInvoiceModal] = useState<any | null>(null);
 
   // 4. MODULE SPECIFIC STATES
   // Dashboard
@@ -192,6 +193,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
   const [partCategoryId, setPartCategoryId] = useState('');
   const [partUnitId, setPartUnitId] = useState('');
   const [partPrice, setPartPrice] = useState('');
+  const [partBuyPrice, setPartBuyPrice] = useState('');
   const [partStock, setPartStock] = useState('');
   const [partImage, setPartImage] = useState('');
   const [partDesc, setPartDesc] = useState('');
@@ -1027,8 +1029,88 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
       const { error } = await supabase.from('orders').update(updatePayload).eq('id', orderId);
       if (error) throw error;
       
+      // Logika Tambahan Pencatatan Buku Kas Otomatis saat Status diubah ke Selesai dari Dropdown
+      if (newStatus === 'Selesai') {
+        const ord = adminOrders.find(o => String(o.id) === String(orderId));
+        if (ord) {
+          const orderRef = String(ord.id);
+          // 1. Bersihkan catatan ledger terdahulu (seperti DP) untuk menghindari duplikasi
+          await supabase
+            .from('financial_ledger')
+            .delete()
+            .eq('reference_order_id', orderRef);
+
+          const noteStr = ord.note || ord.complaint || ord.complaint_description || '';
+          let invData: any = {};
+          
+          // Ekstrak rincian invoice dari note jika ada
+          const match = noteStr.match(/\[INVOICE:\s*([^\]]+)\]/);
+          if (match && match[1]) {
+            match[1].split('|').forEach((p: string) => {
+              const [k, v] = p.split('=');
+              if (k && v) {
+                const key = k.trim().toLowerCase();
+                invData[key] = key === 'd' ? v.trim() : Number(v.trim()) || 0;
+              }
+            });
+          }
+
+          const payloads = [];
+          const cName = ord.customer_name || 'Pelanggan';
+          const nominalJasa = Number(invData?.j || invData?.jasa || invData?.J || ord.base_fee || 0);
+          const nominalPart = Number(invData?.p || invData?.part || invData?.P || ord.material_fee || 0);
+          const nominalLayanan = Number(invData?.l || invData?.layanan || invData?.L || ord.transport_fee || 0);
+          const totalInv = Number(invData?.t || invData?.total || invData?.T || ord.total_amount || (nominalJasa + nominalPart + nominalLayanan));
+
+          if (nominalJasa > 0) {
+            payloads.push({
+              transaction_type: 'PEMASUKAN',
+              category: 'Jasa Servis',
+              amount: nominalJasa,
+              description: `Pemasukan Jasa Servis #${ord.order_code || orderRef.slice(0, 8)} - ${cName}`,
+              reference_order_id: orderRef,
+              is_settled: true
+            });
+          }
+          if (nominalPart > 0) {
+            payloads.push({
+              transaction_type: 'PEMASUKAN',
+              category: 'Penjualan Sparepart',
+              amount: nominalPart,
+              description: `Pemasukan Sparepart #${ord.order_code || orderRef.slice(0, 8)} - ${cName}`,
+              reference_order_id: orderRef,
+              is_settled: true
+            });
+          }
+          if (nominalLayanan > 0) {
+            payloads.push({
+              transaction_type: 'PEMASUKAN',
+              category: 'Layanan Ekstra',
+              amount: nominalLayanan,
+              description: `Pemasukan Layanan #${ord.order_code || orderRef.slice(0, 8)} - ${cName}`,
+              reference_order_id: orderRef,
+              is_settled: true
+            });
+          }
+          if (payloads.length === 0 && totalInv > 0) {
+            payloads.push({
+              transaction_type: 'PEMASUKAN',
+              category: 'Jasa Servis',
+              amount: totalInv,
+              description: `Pemasukan Tagihan Pesanan #${ord.order_code || orderRef.slice(0, 8)} - ${cName}`,
+              reference_order_id: orderRef,
+              is_settled: true
+            });
+          }
+
+          if (payloads.length > 0) {
+            await supabase.from('financial_ledger').insert(payloads);
+          }
+        }
+      }
+
       showToastMsg(`Status pesanan berhasil diperbarui menjadi "${newStatus}"`, 'success');
-      fetchData();
+      await fetchData(); // Memanggil fetchData() agar tab "Laporan & Keuangan" otomatis ter-refresh!
       setPendingStatusUpdates(prev => { const ns = { ...prev }; delete ns[orderId]; return ns; });
     } catch (err: any) {
       showToastMsg('Gagal mengubah status: ' + err.message, 'error');
@@ -1337,6 +1419,30 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
 
   const DEFAULT_SPAREPART_DESC = "Suku cadang original/berkualitas. Harga belum termasuk biaya pemasangan oleh teknisi.";
 
+  const cancelEditPart = () => {
+    setIsStokModalOpen(false);
+    setEditingPartId(null);
+    setPartName('');
+    setPartPrice('');
+    setPartBuyPrice('');
+    setPartStock('');
+    setPartImage('');
+    setPartDesc('');
+  };
+
+  const handleEditPart = (part: any) => {
+    setEditingPartId(part.id);
+    setPartName(part.name);
+    setPartCategoryId(part.category_id);
+    setPartUnitId(part.unit_id);
+    setPartPrice(part.price);
+    setPartBuyPrice(part.buy_price ? String(part.buy_price) : '');
+    setPartStock(part.stock);
+    setPartImage(part.image_url || '');
+    setPartDesc(part.description || '');
+    setIsStokModalOpen(true);
+  };
+
   const handleSavePart = async () => {
     if (!partName || !partCategoryId || !partUnitId || !partPrice || !partStock) {
       showToastMsg("Harap lengkapi nama, kategori, unit, harga, dan stok!", "error");
@@ -1349,6 +1455,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
         category_id: String(partCategoryId),
         unit_id: String(partUnitId),
         price: Number(partPrice),
+        buy_price: parseInt(partBuyPrice) || 0,
         stock: Number(partStock),
         image_url: partImage,
         description: partDesc.trim() || DEFAULT_SPAREPART_DESC
@@ -1361,13 +1468,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
         if (error) throw error;
       }
       showToastMsg("Suku cadang berhasil disimpan!", "success");
-      setIsStokModalOpen(false);
-      setEditingPartId(null);
-      setPartName('');
-      setPartPrice('');
-      setPartStock('');
-      setPartImage('');
-      setPartDesc('');
+      cancelEditPart();
       fetchData();
     } catch (err: any) {
       showToastMsg("Gagal menyimpan suku cadang: " + err.message, "error");
@@ -1938,51 +2039,198 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
           </>
         ) : (
           <div className="space-y-4 animate-in fade-in">
-            {/* Native Tailwind Charts */}
-            <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-sm">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-600 mb-4">Grafik Arus Kas Keseluruhan</h3>
-              <div className="flex items-end gap-6 h-36 w-full px-4 border-b border-slate-100 pb-2">
-                <div className="flex flex-col items-center flex-1 gap-2 h-full justify-end group">
-                  <div className="w-full bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-xl transition-all shadow-md group-hover:opacity-80" 
-                       style={{ height: `${Math.min((totalIncome / (totalIncome + totalExpense || 1)) * 100, 100)}%`, minHeight: '15%' }}>
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-500">Pemasukan</span>
-                </div>
-                <div className="flex flex-col items-center flex-1 gap-2 h-full justify-end group">
-                  <div className="w-full bg-gradient-to-t from-rose-600 to-rose-400 rounded-t-xl transition-all shadow-md group-hover:opacity-80" 
-                       style={{ height: `${Math.min((totalExpense / (totalIncome + totalExpense || 1)) * 100, 100)}%`, minHeight: '15%' }}>
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-500">Pengeluaran</span>
-                </div>
-              </div>
-              <div className="flex justify-between items-center mt-3 px-2">
-                <span className="text-[11px] font-bold text-emerald-600">+ Rp {totalIncome.toLocaleString('id-ID')}</span>
-                <span className="text-[11px] font-bold text-rose-600">- Rp {totalExpense.toLocaleString('id-ID')}</span>
-              </div>
-            </div>
+            {/* 1. Grafik Tren Volume & Progres Pesanan (7 Hari Terakhir) */}
+            {(() => {
+              const last7Days = Array.from({ length: 7 }, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - (6 - i));
+                return d;
+              });
 
-            <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-sm">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-600 mb-4">Distribusi Sumber Omzet</h3>
-              <div className="flex w-full h-10 rounded-xl overflow-hidden mb-3 shadow-inner">
-                <div className="bg-indigo-500 h-full hover:opacity-90 transition-opacity" style={{ width: `${(omzetJasa / (totalIncome || 1)) * 100}%` }}></div>
-                <div className="bg-amber-500 h-full hover:opacity-90 transition-opacity" style={{ width: `${(omzetSparepart / (totalIncome || 1)) * 100}%` }}></div>
-                <div className="bg-teal-500 h-full hover:opacity-90 transition-opacity" style={{ width: `${(omzetLayanan / (totalIncome || 1)) * 100}%` }}></div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-[11px] font-bold">
-                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-indigo-500"></div><span className="text-slate-700">Jasa Servis</span></div>
-                  <span className="text-slate-900">Rp {omzetJasa.toLocaleString('id-ID')}</span>
+              const daysData = last7Days.map(date => {
+                const dayLabel = date.toLocaleDateString('id-ID', { weekday: 'short' });
+                const dateString = date.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' });
+                
+                const dailyOrders = adminOrders.filter(ord => {
+                  if (!ord.created_at) return false;
+                  const ordDate = new Date(ord.created_at);
+                  return ordDate.toDateString() === date.toDateString();
+                });
+                
+                const total = dailyOrders.length;
+                const selesai = dailyOrders.filter(o => ['selesai', 'lunas'].includes((o.status || o.order_status || '').toLowerCase())).length;
+                const proses = dailyOrders.filter(o => ['proses', 'dalam_pengerjaan', 'ditangani', 'dijadwalkan', 'jadwal', 'menunggu pembayaran', 'menunggu_pembayaran'].includes((o.status || o.order_status || '').toLowerCase())).length;
+                const batal = dailyOrders.filter(o => ['dibatalkan', 'batal'].includes((o.status || o.order_status || '').toLowerCase())).length;
+                const baru = dailyOrders.filter(o => ['baru', 'menunggu_konfirmasi', 'menunggu konfirmasi', 'diterima'].includes((o.status || o.order_status || '').toLowerCase())).length;
+                
+                return {
+                  dayLabel,
+                  dateString,
+                  total,
+                  selesai,
+                  proses,
+                  batal,
+                  baru
+                };
+              });
+
+              const maxDailyOrders = Math.max(...daysData.map(d => d.total), 1);
+              const totalLast7DaysOrders = daysData.reduce((acc, curr) => acc + curr.total, 0);
+
+              return (
+                <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-sm space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-600">Tren Volume & Progres Pesanan</h3>
+                      <p className="text-[10px] text-slate-400 font-medium">Volume pesanan harian 7 hari terakhir</p>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md">
+                      {totalLast7DaysOrders} Pesanan
+                    </span>
+                  </div>
+
+                  {/* Chart Visual */}
+                  <div className="flex items-end gap-3.5 h-44 w-full px-2 pt-4 pb-2 border-b border-slate-100 relative">
+                    {/* Y-Axis guide lines */}
+                    <div className="absolute left-0 right-0 top-4 border-t border-slate-100/60 pointer-events-none"></div>
+                    <div className="absolute left-0 right-0 top-16 border-t border-slate-100/60 pointer-events-none"></div>
+                    <div className="absolute left-0 right-0 top-28 border-t border-slate-100/60 pointer-events-none"></div>
+
+                    {daysData.map((item, idx) => {
+                      const totalHeightPct = Math.max((item.total / maxDailyOrders) * 100, 4); // minimum visible height
+                      const selesaiPct = item.total > 0 ? (item.selesai / item.total) * 100 : 0;
+                      const prosesPct = item.total > 0 ? (item.proses / item.total) * 100 : 0;
+                      const baruPct = item.total > 0 ? (item.baru / item.total) * 100 : 0;
+                      const batalPct = item.total > 0 ? (item.batal / item.total) * 100 : 0;
+
+                      return (
+                        <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group relative">
+                          {/* Tooltip on Hover */}
+                          <div className="absolute bottom-full mb-1 bg-slate-900/95 text-white text-[9px] font-semibold py-1 px-1.5 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none whitespace-nowrap leading-relaxed">
+                            <p className="font-extrabold text-[10px] border-b border-white/10 pb-0.5 mb-0.5 text-center">{item.dayLabel}, {item.dateString}</p>
+                            <p className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Selesai: {item.selesai}</p>
+                            <p className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>Proses: {item.proses}</p>
+                            <p className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Baru: {item.baru}</p>
+                            <p className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>Batal: {item.batal}</p>
+                            <div className="border-t border-white/10 pt-0.5 mt-0.5 font-bold flex justify-between gap-2"><span>Total:</span> <span>{item.total}</span></div>
+                          </div>
+
+                          {/* Top volume number */}
+                          {item.total > 0 && (
+                            <span className="text-[9px] font-black text-slate-800 mb-1 z-10 transition-transform group-hover:scale-110">
+                              {item.total}
+                            </span>
+                          )}
+
+                          {/* Stacked Column Bar */}
+                          <div 
+                            className="w-full rounded-t-lg overflow-hidden flex flex-col justify-end shadow-xs transition-all group-hover:brightness-95" 
+                            style={{ height: `${totalHeightPct}%` }}
+                          >
+                            {/* Segment 1: Batal (Bottom) */}
+                            {batalPct > 0 && <div className="bg-rose-500 w-full" style={{ height: `${batalPct}%` }}></div>}
+                            {/* Segment 2: Baru */}
+                            {baruPct > 0 && <div className="bg-amber-400 w-full" style={{ height: `${baruPct}%` }}></div>}
+                            {/* Segment 3: Proses */}
+                            {prosesPct > 0 && <div className="bg-indigo-500 w-full" style={{ height: `${prosesPct}%` }}></div>}
+                            {/* Segment 4: Selesai (Top) */}
+                            {selesaiPct > 0 && <div className="bg-emerald-500 w-full animate-pulse-slow" style={{ height: `${selesaiPct}%` }}></div>}
+                            {item.total === 0 && <div className="bg-slate-100 w-full h-1"></div>}
+                          </div>
+
+                          {/* Day & Date Labels */}
+                          <div className="text-center mt-1.5 select-none leading-tight">
+                            <span className="text-[10px] font-extrabold text-slate-700 block">{item.dayLabel}</span>
+                            <span className="text-[8px] font-bold text-slate-400 block">{item.dateString}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Legends */}
+                  <div className="grid grid-cols-4 gap-1 text-[10px] pt-1.5 text-slate-500 font-bold">
+                    <div className="flex items-center justify-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500"></span>Selesai</div>
+                    <div className="flex items-center justify-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-500"></span>Proses</div>
+                    <div className="flex items-center justify-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400"></span>Baru</div>
+                    <div className="flex items-center justify-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-500"></span>Batal</div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center text-[11px] font-bold">
-                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-amber-500"></div><span className="text-slate-700">Suku Cadang</span></div>
-                  <span className="text-slate-900">Rp {omzetSparepart.toLocaleString('id-ID')}</span>
+              );
+            })()}
+
+            {/* 2. Leaderboard Objek/Unit Layanan Terlaris */}
+            {(() => {
+              // Menghitung Top 6 Objek/Unit Terlaris
+              const unitCounts: Record<string, number> = {};
+              let totalValidOrders = 0;
+
+              adminOrders.forEach(ord => {
+                  const status = (ord.status || ord.order_status || '').toLowerCase();
+                  if (status === 'dibatalkan') return; // Abaikan pesanan batal
+                  
+                  const unitName = ord.unit_name || ord.custom_service_title || 'Lainnya';
+                  unitCounts[unitName] = (unitCounts[unitName] || 0) + 1;
+                  totalValidOrders++;
+              });
+
+              const topUnits = Object.entries(unitCounts)
+                  .map(([name, count]) => ({
+                      name,
+                      count,
+                      percentage: totalValidOrders > 0 ? Math.round((count / totalValidOrders) * 100) : 0
+                  }))
+                  .sort((a, b) => b.count - a.count)
+                  .slice(0, 6); // Ambil Top 6 saja
+
+              return (
+                <div className="bg-white p-5 rounded-[24px] border border-slate-100 shadow-sm space-y-4">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-600">Unit Layanan Terlaris</h3>
+                    <p className="text-[10px] text-slate-400 font-medium">Top 6 Objek/Unit Layanan Terpopuler (Leaderboard)</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3.5">
+                    {topUnits.map((item, idx) => {
+                      const rankColors = [
+                        { bg: 'bg-indigo-600 text-white', bar: 'bg-indigo-50/70' },
+                        { bg: 'bg-blue-500 text-white', bar: 'bg-blue-50/70' },
+                        { bg: 'bg-teal-500 text-white', bar: 'bg-teal-50/70' },
+                        { bg: 'bg-slate-200 text-slate-700', bar: 'bg-slate-50/70' },
+                        { bg: 'bg-slate-200 text-slate-700', bar: 'bg-slate-50/70' },
+                        { bg: 'bg-slate-200 text-slate-700', bar: 'bg-slate-50/70' }
+                      ];
+                      const style = rankColors[idx] || rankColors[3];
+
+                      return (
+                        <div key={idx} className="relative rounded-2xl border border-slate-100 overflow-hidden shadow-xs p-3 min-h-[64px] flex items-center justify-between group transition-all hover:shadow-md">
+                          {/* Progress bar background */}
+                          <div 
+                            className={`absolute inset-y-0 left-0 ${style.bar} transition-all duration-1000 ease-out`}
+                            style={{ width: `${item.percentage}%` }}
+                          ></div>
+
+                          {/* Card Content layered on top */}
+                          <div className="relative z-10 flex items-center gap-2.5 min-w-0 w-full">
+                            <span className={`w-6 h-6 rounded-lg text-[10px] font-black flex items-center justify-center shrink-0 shadow-xs ${style.bg}`}>
+                              {idx + 1}
+                            </span>
+                            <div className="min-w-0 flex-1 leading-snug">
+                              <h5 className="font-extrabold text-[12px] text-slate-800 truncate" title={item.name}>
+                                {item.name}
+                              </h5>
+                              <p className="text-[10px] text-slate-500 font-bold mt-0.5">
+                                {item.count} Pesanan <span className="text-[9px] text-slate-400 font-medium">({item.percentage}%)</span>
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="flex justify-between items-center text-[11px] font-bold">
-                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-teal-500"></div><span className="text-slate-700">Layanan Ekstra</span></div>
-                  <span className="text-slate-900">Rp {omzetLayanan.toLocaleString('id-ID')}</span>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* KARTU EVALUASI KEPUASAN (SELESAI) */}
             <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-sm space-y-3">
@@ -2108,13 +2356,13 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
             <span>Baru</span>
             {pesananBaruCount > 0 && <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 text-[9px] rounded-full font-extrabold">{pesananBaruCount}</span>}
           </button>
-          <button onClick={() => setOrderTab('proses')} className={`flex-1 min-w-[75px] py-2 px-2 text-[11px] font-bold rounded-lg outline-none flex items-center justify-center gap-1 ${orderTab === 'proses' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-            <span>Proses</span>
-            {prosesCount > 0 && <span className="px-1.5 py-0.2 bg-amber-100 text-amber-700 text-[9px] rounded-full font-extrabold">{prosesCount}</span>}
-          </button>
           <button onClick={() => setOrderTab('jadwal')} className={`flex-1 min-w-[75px] py-2 px-2 text-[11px] font-bold rounded-lg outline-none flex items-center justify-center gap-1 ${orderTab === 'jadwal' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
             <span>Jadwal</span>
             {jadwalCount > 0 && <span className="px-1.5 py-0.2 bg-indigo-100 text-indigo-700 text-[9px] rounded-full font-extrabold">{jadwalCount}</span>}
+          </button>
+          <button onClick={() => setOrderTab('proses')} className={`flex-1 min-w-[75px] py-2 px-2 text-[11px] font-bold rounded-lg outline-none flex items-center justify-center gap-1 ${orderTab === 'proses' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            <span>Proses</span>
+            {prosesCount > 0 && <span className="px-1.5 py-0.2 bg-amber-100 text-amber-700 text-[9px] rounded-full font-extrabold">{prosesCount}</span>}
           </button>
           <button onClick={() => setOrderTab('selesai')} className={`flex-1 min-w-[75px] py-2 px-2 text-[11px] font-bold rounded-lg outline-none flex items-center justify-center gap-1 ${orderTab === 'selesai' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
             <span>Selesai</span>
@@ -2145,7 +2393,17 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
         ) : (
           <div className="space-y-4">
             {currentOrders.map(ord => {
-              const rawNote = ord.note || ord.complaint || ord.complaint_description || '';
+              let rawNote = ord.note || ord.complaint || ord.complaint_description || '';
+              
+              // EKSTRAKSI DATA SUKU CADANG (PARSING)
+              const sparePartRequests: string[] = [];
+              const partRegex = /\[PELANGGAN MEMINTA TAMBAHAN PART:\s*([^\]]+)\]/g;
+              let partMatch;
+              while ((partMatch = partRegex.exec(rawNote)) !== null) {
+                  sparePartRequests.push(partMatch[1]);
+              }
+              rawNote = rawNote.replace(/\[PELANGGAN MEMINTA TAMBAHAN PART:[^\]]+\]/g, ''); // bersihkan dari rawNote
+
               const activeStatus = ord.status || ord.order_status || 'Menunggu Konfirmasi';
               const activeStatusLower = activeStatus.toLowerCase();
               const isExpanded = expandedOrderId === ord.id;
@@ -2297,6 +2555,36 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                           <div className="flex items-center gap-1.5 text-teal-800 font-bold bg-teal-50 p-2 rounded-xl text-[11px] mt-2 border border-teal-100">
                             <Ticket className="w-3.5 h-3.5 text-teal-600 shrink-0" />
                             <span>Voucher Digunakan: <span className="font-mono font-black text-slate-800">{appliedPromo.code}</span> ({appliedPromo.title})</span>
+                          </div>
+                        )}
+
+                        {sparePartRequests.length > 0 && (
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-2">
+                            <p className="font-bold text-slate-700 flex items-center gap-1.5">
+                              <Package className="w-4 h-4 text-emerald-600" />
+                              <span>Permintaan Tambahan Suku Cadang:</span>
+                            </p>
+                            <div className="space-y-1.5 pl-1">
+                              {sparePartRequests.map((req, idx) => {
+                                const eqIndex = req.indexOf('=');
+                                let name = req;
+                                let price: number | null = null;
+                                if (eqIndex !== -1) {
+                                  name = req.substring(0, eqIndex).trim();
+                                  price = Number(req.substring(eqIndex + 1).trim()) || null;
+                                }
+                                return (
+                                  <div key={idx} className="flex justify-between items-center bg-slate-50 border border-slate-100 p-2 rounded-xl text-[11px] font-bold">
+                                    <span className="text-slate-700 font-semibold">{name}</span>
+                                    {price !== null ? (
+                                      <span className="text-emerald-600 font-black">Rp {price.toLocaleString('id-ID')}</span>
+                                    ) : (
+                                      <span className="text-slate-400 font-medium">Harga tidak ditentukan</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                         
@@ -2490,6 +2778,22 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                       {/* FORM ESTIMASI & INVOICE HANYA MUNCUL DI TAHAP PENGERJAAN & PELUNASAN (BUKAN PESANAN BARU & BUKAN DIJADWALKAN) */}
                       {!isNewOrder && !isScheduled && (
                         <>
+                          {sparePartRequests.length > 0 && (
+                             <div className="mb-4 bg-indigo-50 border border-indigo-200 rounded-xl p-3.5 shadow-sm animate-in fade-in">
+                                <span className="text-[10px] font-extrabold text-indigo-700 tracking-wider uppercase flex items-center gap-1.5 mb-2">
+                                  <Package className="w-4 h-4 shrink-0"/> Suku Cadang Ditambahkan Pelanggan:
+                                </span>
+                                <div className="space-y-1.5">
+                                    {sparePartRequests.map((partReq, idx) => (
+                                      <div key={idx} className="text-[11px] font-bold text-slate-700 bg-white px-3 py-2 rounded-lg border border-indigo-100 flex items-center shadow-xs">
+                                         <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full mr-2 shrink-0"></span>
+                                         {partReq}
+                                      </div>
+                                    ))}
+                                </div>
+                             </div>
+                          )}
+
                           <div className="bg-white p-3.5 rounded-[18px] border border-slate-100 space-y-2">
                             <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Input Estimasi Biaya Awalan:</label>
                             <div className="flex gap-2">
@@ -2522,6 +2826,64 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                                 </span>
                               )}
                             </div>
+
+                            {sparePartRequests.length > 0 && (
+                              <div className="bg-emerald-50/50 border border-emerald-100 p-2.5 rounded-xl text-xs font-semibold text-slate-700 space-y-1.5">
+                                <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800">Suku Cadang Tambahan dari Aplikasi:</p>
+                                <div className="space-y-1">
+                                  {sparePartRequests.map((req, rIdx) => {
+                                    const eqIdx = req.indexOf('=');
+                                    let pName = req;
+                                    let pPrice = 0;
+                                    if (eqIdx !== -1) {
+                                      pName = req.substring(0, eqIdx).trim();
+                                      pPrice = Number(req.substring(eqIdx + 1).trim()) || 0;
+                                    }
+                                    return (
+                                      <div key={rIdx} className="flex justify-between items-center text-[11px]">
+                                        <span className="text-slate-600 font-medium">• {pName}</span>
+                                        {pPrice > 0 && <span className="font-bold text-slate-800">Rp {pPrice.toLocaleString('id-ID')}</span>}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                {(() => {
+                                  const totalPartsCost = sparePartRequests.reduce((sum, req) => {
+                                    const eqIdx = req.indexOf('=');
+                                    if (eqIdx !== -1) {
+                                      return sum + (Number(req.substring(eqIdx + 1).trim()) || 0);
+                                    }
+                                    return sum;
+                                  }, 0);
+
+                                  if (totalPartsCost > 0) {
+                                    return (
+                                      <div className="pt-1.5 border-t border-emerald-200/50 flex justify-between items-center">
+                                        <span className="text-[10px] font-bold text-emerald-900">Total Harga Part: Rp {totalPartsCost.toLocaleString('id-ID')}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setInvoiceInputs(p => ({
+                                              ...p,
+                                              [ord.id]: {
+                                                ...(p[ord.id] || { jasa: '', part: '', layanan: '', desc: '' }),
+                                                part: String(totalPartsCost)
+                                              }
+                                            }));
+                                            showToastMsg("Harga suku cadang otomatis terisi!", "success");
+                                          }}
+                                          className="text-[9px] bg-emerald-600 text-white font-extrabold px-2 py-1 rounded-lg hover:bg-emerald-700 shadow-xs active:scale-95 transition-all outline-none"
+                                        >
+                                          Salin Ke Form Suku Cadang
+                                        </button>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                            )}
+
                             <div className="grid grid-cols-3 gap-2">
                               <div>
                                 <span className="text-[9px] font-bold text-slate-500 block mb-0.5">Jasa (Rp)</span>
@@ -2585,7 +2947,7 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
 
                         {invoiceData && (
                           <button 
-                            onClick={() => setShowInvoiceModal({ ord, invoiceData })} 
+                            onClick={() => setAdminInvoiceModal({ ord, invoiceData })} 
                             className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-2.5 px-3 rounded-xl text-xs border border-indigo-100 flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
                           >
                             <Printer className="w-3.5 h-3.5" /> Cetak Tagihan
@@ -2732,6 +3094,53 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                 <div>
                   <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1 uppercase tracking-wider mb-0.5"><TrendingDown className="w-3 h-3 text-rose-400"/> Pengeluaran</span>
                   <span className="text-[14px] font-black text-white">Rp {totalPengeluaran.toLocaleString('id-ID')}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Grafik Arus Kas Keseluruhan (Pindahan dari Dashboard ke Laporan Keuangan) */}
+            <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-sm">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-600 mb-3">Grafik Arus Kas Keseluruhan</h3>
+              <div className="flex items-end gap-6 h-36 w-full px-4 border-b border-slate-100 pb-2">
+                <div className="flex flex-col items-center flex-1 gap-2 h-full justify-end group">
+                  <div className="w-full bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-xl transition-all shadow-md group-hover:opacity-80" 
+                       style={{ height: `${Math.min((totalPemasukan / (totalPemasukan + totalPengeluaran || 1)) * 100, 100)}%`, minHeight: '15%' }}>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-500">Pemasukan</span>
+                </div>
+                <div className="flex flex-col items-center flex-1 gap-2 h-full justify-end group">
+                  <div className="w-full bg-gradient-to-t from-rose-600 to-rose-400 rounded-t-xl transition-all shadow-md group-hover:opacity-80" 
+                       style={{ height: `${Math.min((totalPengeluaran / (totalPemasukan + totalPengeluaran || 1)) * 100, 100)}%`, minHeight: '15%' }}>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-500">Pengeluaran</span>
+                </div>
+              </div>
+              <div className="flex justify-between items-center mt-3 px-2">
+                <span className="text-[11px] font-bold text-emerald-600">+ Rp {totalPemasukan.toLocaleString('id-ID')}</span>
+                <span className="text-[11px] font-bold text-rose-600">- Rp {totalPengeluaran.toLocaleString('id-ID')}</span>
+              </div>
+            </div>
+
+            {/* Distribusi Sumber Omzet (Dipindahkan juga agar laporan finansial semakin komprehensif) */}
+            <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-sm">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-600 mb-3">Distribusi Sumber Omzet</h3>
+              <div className="flex w-full h-10 rounded-xl overflow-hidden mb-3 shadow-inner">
+                <div className="bg-indigo-500 h-full hover:opacity-90 transition-opacity" style={{ width: `${(omzetJasa / (totalPemasukan || 1)) * 100}%` }}></div>
+                <div className="bg-amber-500 h-full hover:opacity-90 transition-opacity" style={{ width: `${(omzetSparepart / (totalPemasukan || 1)) * 100}%` }}></div>
+                <div className="bg-teal-500 h-full hover:opacity-90 transition-opacity" style={{ width: `${(omzetLayanan / (totalPemasukan || 1)) * 100}%` }}></div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-[11px] font-bold">
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-indigo-500"></div><span className="text-slate-700">Jasa Servis</span></div>
+                  <span className="text-slate-900">Rp {omzetJasa.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] font-bold">
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-amber-500"></div><span className="text-slate-700">Suku Cadang</span></div>
+                  <span className="text-slate-900">Rp {omzetSparepart.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] font-bold">
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-teal-500"></div><span className="text-slate-700">Layanan Ekstra</span></div>
+                  <span className="text-slate-900">Rp {omzetLayanan.toLocaleString('id-ID')}</span>
                 </div>
               </div>
             </div>
@@ -3044,23 +3453,18 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                     
                     <div className="flex justify-between items-center mt-1.5">
                       <span className="text-[10px] text-slate-500 font-medium">Stok: <b className="text-slate-800">{item.stock}</b></span>
-                      <span className="text-[11px] text-blue-600 font-black">Rp {Number(item.price || 0).toLocaleString('id-ID')}</span>
+                      <div className="text-right">
+                        <span className="text-[11px] text-blue-600 font-black block">Rp {Number(item.price || 0).toLocaleString('id-ID')}</span>
+                        {item.buy_price !== undefined && item.buy_price !== null && (
+                          <span className="text-[9px] text-slate-400 font-medium block">Modal: Rp {Number(item.buy_price).toLocaleString('id-ID')}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   <div className="flex gap-1.5 mt-3 border-t border-slate-50 pt-2">
                     <button 
-                      onClick={() => {
-                        setEditingPartId(item.id); 
-                        setPartName(item.name); 
-                        setPartCategoryId(item.category_id); 
-                        setPartUnitId(item.unit_id); 
-                        setPartPrice(item.price); 
-                        setPartStock(item.stock); 
-                        setPartImage(item.image_url || ''); 
-                        setPartDesc(item.description || ''); 
-                        setIsStokModalOpen(true);
-                      }} 
+                      onClick={() => handleEditPart(item)} 
                       className="flex-1 bg-amber-50 text-amber-600 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center hover:bg-amber-100 transition-colors"
                     >
                       <Edit3 className="w-3 h-3"/>
@@ -3104,12 +3508,12 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
 
         {/* Modal Stok (Slide-Up) */}
         {isStokModalOpen && (
-          <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsStokModalOpen(false)}>
+          <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-900/60 backdrop-blur-sm" onClick={() => cancelEditPart()}>
             <div className="w-full max-w-md bg-white rounded-t-[32px] p-6 pb-20 animate-in slide-in-from-bottom-full duration-300" onClick={e => e.stopPropagation()}>
               <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4"></div>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-bold text-lg text-slate-800 tracking-tight">{editingPartId ? 'Edit Stok Barang' : 'Tambah Stok Baru'}</h3>
-                <button onClick={() => setIsStokModalOpen(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X className="w-4 h-4"/></button>
+                <button onClick={() => cancelEditPart()} className="p-2 bg-slate-100 rounded-full text-slate-500"><X className="w-4 h-4"/></button>
               </div>
               <div className="space-y-3">
                 <input type="text" placeholder="Nama Suku Cadang (*Wajib)" value={partName} onChange={e => setPartName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-[16px] text-xs font-bold outline-none focus:bg-white" />
@@ -3123,18 +3527,50 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                     {serviceUnits.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <input type="number" placeholder="Harga (Rp)" value={partPrice} onChange={e => setPartPrice(e.target.value)} className="bg-slate-50 border border-slate-200 p-3.5 rounded-[16px] text-xs font-bold outline-none focus:bg-white" />
-                  <input type="number" placeholder="Jumlah Stok" value={partStock} onChange={e => setPartStock(e.target.value)} className="bg-slate-50 border border-slate-200 p-3.5 rounded-[16px] text-xs font-bold outline-none focus:bg-white" />
+                
+                {/* GRID 2 KOLOM BERDAMPINGAN UNTUK HARGA BELI & JUAL */}
+                <div className="grid grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Harga Beli / Modal (Rp)</label>
+                    <input 
+                      type="number" 
+                      placeholder="Harga Beli" 
+                      value={partBuyPrice} 
+                      onChange={e => setPartBuyPrice(e.target.value)} 
+                      className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-[16px] text-xs font-bold outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500" 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Harga Jual (Rp)</label>
+                    <input 
+                      type="number" 
+                      placeholder="Harga Jual" 
+                      value={partPrice} 
+                      onChange={e => setPartPrice(e.target.value)} 
+                      className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-[16px] text-xs font-bold outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500" 
+                    />
+                  </div>
                 </div>
+
+                <div>
+                  <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Jumlah Stok</label>
+                  <input 
+                    type="number" 
+                    placeholder="Jumlah Stok" 
+                    value={partStock} 
+                    onChange={e => setPartStock(e.target.value)} 
+                    className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-[16px] text-xs font-bold outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500" 
+                  />
+                </div>
+
                 <input type="text" placeholder="URL Foto Gambar (Opsional)" value={partImage} onChange={e => setPartImage(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-[16px] text-xs outline-none focus:bg-white" />
-                <textarea placeholder="Deskripsi Barang..." value={partDesc} onChange={e => setPartDesc(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-[16px] text-xs h-20 resize-none outline-none focus:bg-white"></textarea>
+                <textarea placeholder="Deskripsi Suku Cadang..." value={partDesc} onChange={e => setPartDesc(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-[16px] text-xs h-20 resize-none outline-none focus:bg-white"></textarea>
                 <button 
                   onClick={handleSavePart} 
                   disabled={isSubmittingPart}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl shadow-md flex justify-center items-center gap-2 mt-2 active:scale-95 transition-transform"
                 >
-                  {isSubmittingPart ? <Loader2 className="w-4 h-4 animate-spin"/> : 'Simpan Barang'}
+                  {isSubmittingPart ? <Loader2 className="w-4 h-4 animate-spin"/> : 'Simpan Suku Cadang'}
                 </button>
               </div>
             </div>
@@ -5854,6 +6290,191 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
           </div>
         </div>
       )}
+
+      {/* MODAL: INVOICE INTERNAL RECEIPT */}
+      {adminInvoiceModal && (() => {
+        const ord = adminInvoiceModal.ord;
+        const invoiceData = adminInvoiceModal.invoiceData;
+        const noteText = ord.note || ord.complaint || ord.complaint_description || '';
+        
+        // Parsing DP
+        const dpMatch = noteText.match(/\[DP:\s*([^\]]+)\]/);
+        let dpAmountVal = 0;
+        let dpBank = 'BCA';
+        if (dpMatch && dpMatch[1]) {
+          dpMatch[1].split('|').forEach((p: string) => {
+            const [k, v] = p.split('=');
+            if (k && v) {
+              const key = k.trim().toLowerCase();
+              if (key === 'nominal' || key === 'n') dpAmountVal = Number(v.trim()) || 0;
+              if (key === 'bank' || key === 'b') dpBank = v.trim();
+            }
+          });
+        }
+
+        // Parsing Promo
+        const promoMatch = noteText.match(/\[PROMO_APPLIED:\s*([^\]]+)\]/);
+        let promoDetails: { code: string; title: string } | null = null;
+        if (promoMatch && promoMatch[1]) {
+          const parts = promoMatch[1].split('|');
+          promoDetails = {
+            code: parts[0]?.trim() || '',
+            title: parts[1]?.trim() || ''
+          };
+        }
+
+        const jasaCost = Number(invoiceData?.jasa) || 0;
+        const partCost = Number(invoiceData?.part) || 0;
+        const layananCost = Number(invoiceData?.layanan) || 0;
+        const subTotalCost = jasaCost + partCost + layananCost;
+        const dpPaid = dpAmountVal;
+        const promoDiscount = promoDetails ? 20000 : 0; // standard discount
+        const finalBilling = Math.max(0, subTotalCost - dpPaid - promoDiscount);
+        
+        const isLunas = (ord.payment_status === 'lunas' || (ord.status || '').toLowerCase() === 'selesai');
+
+        const orderDate = ord.created_at ? new Date(ord.created_at).toLocaleDateString('id-ID', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }) : '-';
+
+        return (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in" onClick={() => setAdminInvoiceModal(null)}>
+            <div className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 w-full max-w-sm rounded-[24px] shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+              {/* Receipt Body */}
+              <div className="p-6 overflow-y-auto max-h-[70vh] space-y-4 font-mono text-[11px]">
+                {/* Header Struk */}
+                <div className="text-center space-y-1">
+                  <h4 className="text-[16px] font-black tracking-wider text-indigo-600 dark:text-indigo-400">OMEANFIX SERVIS</h4>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Cirebon, Jawa Barat</p>
+                  <p className="text-[9px] text-slate-400">WhatsApp: 0812-3456-7890</p>
+                </div>
+
+                <div className="border-t border-dashed border-slate-200 dark:border-slate-800 my-2"></div>
+
+                {/* Metadata Pesanan */}
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">No. Pesanan:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">#{ord.order_code || String(ord.id).slice(0, 8)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Tanggal:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{orderDate}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Pelanggan:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[150px]">{ord.customer_name || 'Pelanggan'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Tipe Layanan:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{ord.unit_name || '-'} ({ord.action_type || 'Servis'})</span>
+                  </div>
+                </div>
+
+                <div className="border-t border-dashed border-slate-200 dark:border-slate-800 my-2"></div>
+
+                {/* Rincian Pekerjaan & Biaya */}
+                <div className="space-y-2">
+                  <p className="font-extrabold uppercase text-[10px] text-indigo-500 tracking-wider">Rincian Transaksi:</p>
+                  
+                  {jasaCost > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Jasa Servis</span>
+                      <span className="font-bold">Rp {jasaCost.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
+                  {partCost > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Suku Cadang (Sparepart)</span>
+                      <span className="font-bold">Rp {partCost.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
+                  {layananCost > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Layanan Ekstra</span>
+                      <span className="font-bold">Rp {layananCost.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-dashed border-slate-200 dark:border-slate-800 my-2"></div>
+
+                {/* Ringkasan Biaya */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between text-slate-500 font-bold">
+                    <span>Subtotal</span>
+                    <span>Rp {subTotalCost.toLocaleString('id-ID')}</span>
+                  </div>
+                  
+                  {dpPaid > 0 && (
+                    <div className="flex justify-between text-indigo-600 dark:text-indigo-400">
+                      <span>Uang Muka (DP) - {dpBank}</span>
+                      <span>-Rp {dpPaid.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
+
+                  {promoDetails && (
+                    <div className="flex justify-between text-teal-600 dark:text-teal-400">
+                      <span>Promo ({promoDetails.code})</span>
+                      <span>-Rp {promoDiscount.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
+
+                  <div className="border-t border-slate-200 dark:border-slate-800 pt-1.5 flex justify-between text-[13px] font-black text-slate-900 dark:text-white">
+                    <span>TOTAL PELUNASAN</span>
+                    <span>Rp {finalBilling.toLocaleString('id-ID')}</span>
+                  </div>
+                </div>
+
+                <div className="border-t border-dashed border-slate-200 dark:border-slate-800 my-2"></div>
+
+                {/* Status Pembayaran */}
+                <div className="text-center py-2">
+                  {isLunas ? (
+                    <div className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 rounded-xl py-2 px-3 inline-block text-[12px] font-black tracking-widest uppercase">
+                      *** LUNAS ***
+                    </div>
+                  ) : (
+                    <div className="bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 rounded-xl py-2 px-3 inline-block text-[12px] font-black tracking-widest uppercase animate-pulse">
+                      BELUM LUNAS
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-center text-[9px] text-slate-400 leading-relaxed font-bold">
+                  <p>Terima kasih atas kunjungan Anda!</p>
+                  <p>Garansi jasa servis berlaku selama 30 hari.</p>
+                </div>
+              </div>
+
+              {/* Action Footer */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setAdminInvoiceModal(null)}
+                  className="flex-1 py-3 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-300 dark:hover:bg-slate-700 font-extrabold rounded-xl text-xs active:scale-95 transition-all outline-none"
+                >
+                  Tutup Struk
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.print();
+                  }}
+                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs active:scale-95 transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5 outline-none"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Cetak / PDF</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL: TOAST NOTIFICATIONS */}
       {toast && (
