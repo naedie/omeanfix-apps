@@ -1369,127 +1369,130 @@ export default function App() {
         {/* SPACER BLOCK PENYELAMAT LAYOUT */}
         <div className="h-32 w-full shrink-0 pointer-events-none"></div>
 
-        {/* MODAL CETAK INVOICE */}
+        {/* MODAL CETAK INVOICE PELANGGAN (DESAIN THERMAL RECEIPT) */}
         {showInvoiceModal && (() => {
-           const { ord, invoiceData } = showInvoiceModal;
-           const rawPhone = ord.customer_phone || ord.user_phone || '';
-           let cleaned = rawPhone.replace(/\D/g, '');
-           if (cleaned.startsWith('0')) cleaned = '62' + cleaned.substring(1);
-           
-           const invoiceCode = ord.order_code || (ord.id ? String(ord.id).slice(0, 8) : 'CRB-INV');
-           const invoiceDate = ord.created_at ? new Date(ord.created_at).toLocaleDateString('id-ID') : '-';
-           const customerName = ord.customer_name || 'Pelanggan';
-           const unitName = ord.custom_service_title || ord.unit_name || '-';
-           const descTindakan = invoiceData.desc || '-';
-           
-           const text = `*🧾 INVOICE RESMI OMEANFIX*\n` +
-             `*CIREBON ON-DEMAND SERVICE*\n` +
-             `----------------------------------------\n` +
-             `*No. Invoice:* \`#${invoiceCode}\`\n` +
-             `*Tanggal:* \`${invoiceDate}\`\n` +
-             `*Pelanggan:* Kak ${customerName}\n\n` +
-             `*🔧 DETAIL LAYANAN:*\n` +
-             `• *Unit & Layanan:* ${unitName}\n` +
-             `• *Keterangan:* ${descTindakan}\n\n` +
-             `*💰 RINCIAN BIAYA:*\n` +
-             `• *Biaya Jasa:* Rp ${invoiceData.jasa.toLocaleString('id-ID')}\n` +
-             `• *Suku Cadang:* Rp ${invoiceData.part.toLocaleString('id-ID')}\n` +
-             `• *Biaya Layanan:* Rp ${invoiceData.layanan.toLocaleString('id-ID')}\n` +
-             `----------------------------------------\n` +
-             `👉 *TOTAL BAYAR:* *Rp ${invoiceData.total.toLocaleString('id-ID')}*\n` +
-             `----------------------------------------\n\n` +
-             `*💳 METODE PEMBAYARAN:*\n` +
-             `• *QRIS OMEANFIX* (Silakan scan QR Code pada aplikasi)\n` +
-             `• *Transfer Bank BCA:* 123-456-7890 a.n OMEANFIX\n` +
-             `• *Transfer Bank Mandiri:* 098-765-4321 a.n OMEANFIX\n\n` +
-             `*Pemberitahuan:*\n` +
-             `Harap kirimkan bukti transfer Anda ke nomor WhatsApp ini untuk verifikasi instan. Terima kasih telah mempercayakan perbaikan Anda kepada *OMEANFIX*! 🙏`;
-             
-           const waLink = `https://wa.me/${cleaned}?text=${encodeURIComponent(text)}`;
+            const { ord, invoiceData } = showInvoiceModal;
+            
+            const invoiceCode = ord.order_code || (ord.id ? String(ord.id).slice(0, 8) : 'CRB-INV');
+            const invoiceDate = ord.created_at ? new Date(ord.created_at).toLocaleDateString('id-ID') : '-';
+            const customerName = ord.customer_name || 'Pelanggan';
+            const unitName = ord.custom_service_title || ord.unit_name || '-';
+            const descTindakan = invoiceData.desc || '-';
+            
+            // Ekstrak data DP
+            let dpNominal = 0;
+            let dpBank = '-';
+            let dpStatus = '-';
+            const rawNote = ord.note || ord.complaint_description || '';
+            const dpMatch = rawNote.match(/\[DP:\s*([^\]]+)\]/);
+            if (dpMatch && dpMatch[1]) {
+                dpMatch[1].split('|').forEach((p: string) => {
+                    const [k, v] = p.split('=');
+                    if (k && v) {
+                        const key = k.trim().toLowerCase();
+                        if (key === 'nominal' || key === 'n') dpNominal = Number(v.trim()) || 0;
+                        if (key === 'status' || key === 's') dpStatus = v.trim().toLowerCase();
+                        if (key === 'bank' || key === 'b') dpBank = v.trim();
+                    }
+                });
+            }
 
-           return (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 backdrop-blur-md overflow-y-auto" onClick={() => setShowInvoiceModal(null)}>
-                 <div className="min-h-full py-24 flex items-center justify-center w-full px-5">
-                     <div className="w-full max-w-[320px] bg-[#fdfdfd] shadow-2xl relative flex flex-col rounded-sm animate-in zoom-in-95 print:w-full print:shadow-none print:m-0" onClick={e => e.stopPropagation()}>
-                        <div className="p-6 pb-3 text-center text-slate-800">
-                            <h2 className="font-bold text-[22px] uppercase tracking-wider font-mono">OMEANFIX</h2>
-                            <p className="text-[10px] uppercase tracking-widest text-slate-500 mt-1 font-mono">Cirebon On-Demand Service</p>
-                            <p className="text-[12px] mt-3 font-bold font-mono px-3 py-1 bg-slate-100 border border-slate-200 border-dashed inline-block">#{invoiceCode}</p>
-                        </div>
-                        <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
-                        
-                        <div className="p-5 py-4 space-y-2 text-[11px] font-mono text-slate-700">
-                            <div className="flex justify-between"><span className="text-slate-500">Pelanggan:</span> <span className="font-bold text-right truncate w-24">{customerName}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-500">Layanan:</span> <span className="font-bold text-right truncate w-32">{unitName}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-500">Tanggal:</span> <span className="font-bold text-right">{invoiceDate}</span></div>
-                        </div>
-                        
-                        <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
-                        <div className="p-5 py-4 text-[11px] font-mono text-slate-700">
-                            <span className="text-slate-500 block mb-1">Deskripsi Tindakan:</span>
-                            <span className="font-bold leading-relaxed">{descTindakan}</span>
-                        </div>
-                        <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
-                        <div className="p-5 py-4 space-y-3 text-[12px] font-mono text-slate-700">
-                            <div className="flex justify-between items-center">
-                               <span>Biaya Jasa</span>
-                               <span className="font-bold">Rp {invoiceData.jasa.toLocaleString('id-ID')}</span>
+            const isLunas = ord.payment_status === 'lunas' || (ord.status || '').toLowerCase() === 'selesai';
+            const totalPelunasan = Math.max(0, invoiceData.total - (dpNominal > 0 ? dpNominal : 0));
+
+            return (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 backdrop-blur-md overflow-y-auto" onClick={() => setShowInvoiceModal(null)}>
+                    <div className="min-h-full py-16 flex items-center justify-center w-full px-5">
+                        <div className="w-full max-w-[320px] bg-[#fdfdfd] shadow-2xl relative flex flex-col rounded-sm animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                            <div className="p-6 pb-3 text-center text-slate-800">
+                                <h2 className="font-bold text-[22px] uppercase tracking-wider font-mono text-indigo-700">OMEANFIX</h2>
+                                <p className="text-[10px] uppercase tracking-widest text-slate-500 mt-1 font-mono">Cirebon On-Demand Service</p>
+                                <p className="text-[12px] mt-3 font-bold font-mono px-3 py-1 bg-slate-100 border border-slate-200 border-dashed inline-block">#{invoiceCode}</p>
                             </div>
-                            <div className="flex justify-between items-center">
-                               <span>Suku Cadang</span>
-                               <span className="font-bold">Rp {invoiceData.part.toLocaleString('id-ID')}</span>
+                            <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
+                            
+                            <div className="p-5 py-4 space-y-2 text-[11px] font-mono text-slate-700">
+                                <div className="flex justify-between"><span className="text-slate-500">Pelanggan:</span> <span className="font-bold text-right truncate w-24">{customerName}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-500">Layanan:</span> <span className="font-bold text-right truncate w-32">{unitName}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-500">Tanggal:</span> <span className="font-bold text-right">{invoiceDate}</span></div>
                             </div>
-                            <div className="flex justify-between items-center">
-                               <span>Biaya Layanan</span>
-                               <span className="font-bold">Rp {invoiceData.layanan.toLocaleString('id-ID')}</span>
+                            <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
+                            
+                            <div className="p-5 py-4 text-[11px] font-mono text-slate-700">
+                                <span className="text-slate-500 block mb-1">Deskripsi Tindakan:</span>
+                                <span className="font-bold leading-relaxed">{descTindakan}</span>
+                            </div>
+                            <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
+                            
+                            <div className="p-5 py-4 space-y-3 text-[12px] font-mono text-slate-700">
+                                <div className="flex justify-between items-center">
+                                    <span>Biaya Jasa</span>
+                                    <span className="font-bold">Rp {invoiceData.jasa.toLocaleString('id-ID')}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span>Suku Cadang</span>
+                                    <span className="font-bold">Rp {invoiceData.part.toLocaleString('id-ID')}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span>Biaya Layanan</span>
+                                    <span className="font-bold">Rp {invoiceData.layanan.toLocaleString('id-ID')}</span>
+                                </div>
+                            </div>
+                            <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
+                            
+                            <div className="p-5 py-4 space-y-2 text-[12px] font-mono text-slate-700">
+                                <div className="flex justify-between items-center">
+                                    <span>Subtotal</span>
+                                    <span className="font-bold">Rp {invoiceData.total.toLocaleString('id-ID')}</span>
+                                </div>
+                                {dpNominal > 0 && (
+                                    <div className="flex justify-between items-center text-blue-600">
+                                        <span>Uang Muka (DP) - {dpBank}</span>
+                                        <span className="font-bold">-Rp {dpNominal.toLocaleString('id-ID')}</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="w-full px-4"><div className="border-b-2 border-slate-800"></div></div>
+                            
+                            <div className="p-5 py-4 flex justify-between items-center font-black text-[15px] font-mono text-slate-900">
+                                <span>TOTAL PELUNASAN</span>
+                                <span>Rp {totalPelunasan.toLocaleString('id-ID')}</span>
+                            </div>
+                            <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
+                            
+                            {isLunas ? (
+                                <div className="p-5 py-6 flex justify-center">
+                                     <span className="px-6 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full font-bold tracking-widest text-[12px] font-mono">
+                                         *** LUNAS ***
+                                     </span>
+                                </div>
+                            ) : (
+                                <div className="p-5 py-4 flex flex-col items-center justify-center bg-slate-50">
+                                    <p className="text-[10px] font-bold text-slate-800 mb-2 font-mono">METODE PEMBAYARAN</p>
+                                    <div className="w-28 h-28 bg-white border border-slate-200 rounded-lg shadow-sm flex items-center justify-center p-2 mb-3">
+                                        <div className="w-full h-full border-2 border-slate-800 flex items-center justify-center relative">
+                                            <div className="absolute top-0 left-0 w-2 h-2 border-b-2 border-r-2 border-white bg-slate-800"></div>
+                                            <div className="absolute bottom-0 right-0 w-2 h-2 border-t-2 border-l-2 border-white bg-slate-800"></div>
+                                            <QrCode className="w-16 h-16 text-slate-800" strokeWidth={1.5}/>
+                                        </div>
+                                    </div>
+                                    <div className="text-center font-mono text-[10px] text-slate-600 space-y-1">
+                                        <p>Atau Transfer Bank:</p>
+                                        <p className="font-bold text-slate-800">BCA 123-456-7890 a.n OMEANFIX</p>
+                                        <p className="font-bold text-slate-800">MANDIRI 098-765-4321 a.n OMEANFIX</p>
+                                    </div>
+                                </div>
+                            )}
+                            
+                            <div className="p-5 text-center">
+                                <button onClick={() => setShowInvoiceModal(null)} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-sans font-bold py-3 rounded-xl text-[12px] active:scale-95 shadow-md outline-none transition-colors">
+                                    Tutup Struk
+                                </button>
                             </div>
                         </div>
-                        <div className="w-full px-4"><div className="border-b-2 border-slate-800"></div></div>
-                        
-                        <div className="p-5 py-4 flex justify-between items-center font-black text-[15px] font-mono text-slate-900">
-                            <span>TOTAL BAYAR</span>
-                            <span>Rp {invoiceData.total.toLocaleString('id-ID')}</span>
-                        </div>
-                        <div className="w-full px-4"><div className="border-b-2 border-dashed border-slate-300"></div></div>
-                        <div className="p-5 py-4 flex flex-col items-center justify-center bg-slate-50">
-                           <p className="text-[10px] font-bold text-slate-800 mb-2 font-mono">METODE PEMBAYARAN</p>
-                           
-                           <div className="w-28 h-28 bg-white border border-slate-200 rounded-lg shadow-sm flex items-center justify-center p-2 mb-3">
-                              <div className="w-full h-full border-2 border-slate-800 flex items-center justify-center relative">
-                                 <div className="absolute top-0 left-0 w-2 h-2 border-b-2 border-r-2 border-white bg-slate-800"></div>
-                                 <div className="absolute bottom-0 right-0 w-2 h-2 border-t-2 border-l-2 border-white bg-slate-800"></div>
-                                 <QrCode className="w-16 h-16 text-slate-800" strokeWidth={1.5} />
-                              </div>
-                           </div>
-                           
-                           <div className="text-center font-mono text-[10px] text-slate-600 space-y-1">
-                              <p>Atau Transfer Bank:</p>
-                              <p className="font-bold text-slate-800">BCA 123-456-7890 a.n OMEANFIX</p>
-                              <p className="font-bold text-slate-800">MANDIRI 098-765-4321 a.n OMEANFIX</p>
-                           </div>
-                        </div>
-                        
-                        <div className="p-5 pb-0 text-center">
-                            <a 
-                               href={waLink}
-                               target="_blank"
-                               rel="noopener noreferrer"
-                               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-sans font-bold py-3 px-4 rounded-xl text-[12px] active:scale-95 shadow-md flex items-center justify-center gap-2 transition-all outline-none"
-                            >
-                               <MessageCircle className="w-4 h-4 text-white" />
-                               <span>Bagikan via WhatsApp</span>
-                            </a>
-                        </div>
-                        
-                        <div className="p-5 text-center">
-                            <button onClick={() => setShowInvoiceModal(null)} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-sans font-bold py-3 rounded-xl text-[12px] active:scale-95 shadow-md outline-none transition-colors">
-                               Tutup & Bayar Kasir
-                            </button>
-                        </div>
-                     </div>
-                 </div>
-              </div>
-           );
+                    </div>
+                </div>
+            );
         })()}
 
         {/* MODAL LIHAT BUKTI BAYAR */}
