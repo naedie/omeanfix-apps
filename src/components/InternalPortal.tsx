@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  ArrowLeft, RefreshCw, Menu, X, FileText, Package, Layers, 
+  ArrowLeft, ArrowRight, RefreshCw, Menu, X, FileText, Package, Layers, 
   BarChart3, Settings, Trash2, Edit3, Box, Megaphone, 
   Loader2, Hash, Award, UserPlus, Users, Search, Mail, Phone, User,
   Wind, Car, ShieldCheck, Wrench, Snowflake, Truck, Zap, Smartphone, CheckCircle2, Ticket, QrCode, Printer, Plus, ChevronLeft, ChevronRight, Calendar, Camera, Home, MessageCircle, ChevronDown, ChevronUp, XCircle, Wallet, TrendingUp, TrendingDown, DollarSign, CreditCard,
@@ -85,6 +85,8 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
   const [viewReceiptModal, setViewReceiptModal] = useState<string | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState<any | null>(null);
   const [adminInvoiceModal, setAdminInvoiceModal] = useState<any | null>(null);
+  const [showPartStatsModal, setShowPartStatsModal] = useState(false);
+  const [partStatsFilter, setPartStatsFilter] = useState('Semua');
 
   // 4. MODULE SPECIFIC STATES
   // Dashboard
@@ -2228,6 +2230,88 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
                       );
                     })}
                   </div>
+                </div>
+              );
+            })()}
+
+            {/* 3. Suku Cadang Terlaris (Top 5) */}
+            {(() => {
+              // Menghitung Statistik Penjualan Suku Cadang Secara Real (Tanpa Fake Data)
+              const partCounts: Record<string, { count: number; unit: string }> = {};
+
+              adminOrders.forEach(ord => {
+                  const status = (ord.status || ord.order_status || '').toLowerCase();
+                  if (status === 'dibatalkan') return;
+
+                  const unitName = ord.unit_name || ord.custom_service_title || 'Umum';
+                  const rawNote = ord.note || ord.complaint_description || '';
+                  
+                  // Mengekstrak suku cadang HANYA jika ada di dalam nota pesanan pelanggan
+                  const partRegex = /\[PELANGGAN MEMINTA TAMBAHAN PART:\s*([^\]]+)\]/g;
+                  let partMatch;
+                  while ((partMatch = partRegex.exec(rawNote)) !== null) {
+                      // Membersihkan harga dari teks (cth: "Oli Mesin - Rp45.000" menjadi "Oli Mesin")
+                      const cleanPartName = partMatch[1].split(' - Rp')[0].trim();
+                      const key = `${cleanPartName}|${unitName}`;
+                      
+                      if (!partCounts[key]) {
+                          partCounts[key] = { count: 0, unit: unitName };
+                      }
+                      partCounts[key].count += 1;
+                  }
+              });
+
+              const sortedParts = Object.entries(partCounts)
+                  .map(([key, data]) => ({
+                      name: key.split('|')[0],
+                      unit: data.unit,
+                      count: data.count
+                  }))
+                  .sort((a, b) => b.count - a.count);
+
+              const top5GlobalParts = sortedParts.slice(0, 5);
+
+              return (
+                <div className="bg-white p-5 rounded-[24px] border border-slate-100 shadow-sm animate-in fade-in mt-6">
+                   <div className="flex justify-between items-end mb-4">
+                      <div>
+                          <h3 className="text-[12px] font-extrabold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                              <Package className="w-4 h-4 text-emerald-500"/> Top 5 Suku Cadang
+                          </h3>
+                          <p className="text-[10px] text-slate-400 font-medium mt-0.5">Suku cadang paling banyak diminta</p>
+                      </div>
+                   </div>
+
+                   {top5GlobalParts.length === 0 ? (
+                       <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-100">
+                           <p className="text-[11px] font-medium text-slate-400">Belum ada data suku cadang terjual.</p>
+                       </div>
+                   ) : (
+                       <div className="space-y-2">
+                           {top5GlobalParts.map((part, idx) => (
+                               <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                                   <div className="flex items-center gap-3">
+                                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${idx === 0 ? 'bg-amber-100 text-amber-600' : idx === 1 ? 'bg-slate-200 text-slate-600' : idx === 2 ? 'bg-orange-100 text-orange-800' : 'bg-white border border-slate-200 text-slate-400'}`}>
+                                           {idx + 1}
+                                       </div>
+                                       <div>
+                                           <p className="text-[11px] font-bold text-slate-800 line-clamp-1">{part.name}</p>
+                                           <p className="text-[9px] font-medium text-slate-500">{part.unit}</p>
+                                       </div>
+                                   </div>
+                                   <span className="text-[11px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md shrink-0 border border-emerald-100">
+                                       {part.count}x
+                                   </span>
+                               </div>
+                           ))}
+                       </div>
+                   )}
+                   
+                   {sortedParts.length > 0 && (
+                       <button onClick={() => setShowPartStatsModal(true)} className="w-full mt-3 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 text-[11px] font-bold rounded-xl transition-colors outline-none shadow-sm">
+                           Buka Analisis Lengkap
+                       </button>
+                   )}
                 </div>
               );
             })()}
@@ -6562,6 +6646,111 @@ export default function InternalPortal({ onBackToCustomer }: InternalPortalProps
           </div>
         </div>
       )}
+      {/* MODAL SLIDE-UP: DETAIL STATISTIK SUKA CADANG TERLARIS */}
+      {showPartStatsModal && (() => {
+        // Menghitung Statistik Penjualan Suku Cadang Secara Real (Tanpa Fake Data)
+        const partCounts: Record<string, { count: number; unit: string }> = {};
+
+        adminOrders.forEach(ord => {
+            const status = (ord.status || ord.order_status || '').toLowerCase();
+            if (status === 'dibatalkan') return;
+
+            const unitName = ord.unit_name || ord.custom_service_title || 'Umum';
+            const rawNote = ord.note || ord.complaint_description || '';
+            
+            // Mengekstrak suku cadang HANYA jika ada di dalam nota pesanan pelanggan
+            const partRegex = /\[PELANGGAN MEMINTA TAMBAHAN PART:\s*([^\]]+)\]/g;
+            let partMatch;
+            while ((partMatch = partRegex.exec(rawNote)) !== null) {
+                // Membersihkan harga dari teks (cth: "Oli Mesin - Rp45.000" menjadi "Oli Mesin")
+                const cleanPartName = partMatch[1].split(' - Rp')[0].trim();
+                const key = `${cleanPartName}|${unitName}`;
+                
+                if (!partCounts[key]) {
+                    partCounts[key] = { count: 0, unit: unitName };
+                }
+                partCounts[key].count += 1;
+            }
+        });
+
+        const sortedParts = Object.entries(partCounts)
+            .map(([key, data]) => ({
+                name: key.split('|')[0],
+                unit: data.unit,
+                count: data.count
+            }))
+            .sort((a, b) => b.count - a.count);
+
+        const top5GlobalParts = sortedParts.slice(0, 5);
+
+        // Data untuk filter di dalam Modal
+        const uniquePartUnits = ['Semua', ...Array.from(new Set(sortedParts.map(p => p.unit)))];
+        const filteredModalParts = partStatsFilter === 'Semua' 
+            ? sortedParts 
+            : sortedParts.filter(p => p.unit === partStatsFilter);
+
+        const totalFilteredCount = filteredModalParts.reduce((sum, item) => sum + item.count, 0);
+        const maxFilteredCount = filteredModalParts.length > 0 ? Math.max(...filteredModalParts.map(p => p.count)) : 1;
+
+        return (
+            <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center bg-slate-900/80 backdrop-blur-sm transition-opacity" onClick={() => setShowPartStatsModal(false)}>
+                <div className="bg-white w-full max-w-md rounded-t-[32px] sm:rounded-[32px] p-6 pb-8 max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-full duration-300 shadow-2xl relative border-t sm:border border-slate-100" onClick={e => e.stopPropagation()}>
+                    <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 shrink-0 sm:hidden"></div>
+                    
+                    <div className="flex justify-between items-center mb-4 shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                                <Package className="w-5 h-5"/>
+                            </div>
+                            <div>
+                                <h3 className="text-[16px] font-black text-slate-900 leading-tight">Analisis Suku Cadang</h3>
+                                <p className="text-[11px] text-slate-500 font-medium">Data distribusi penjualan part</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setShowPartStatsModal(false)} className="p-2 bg-slate-100 text-slate-500 rounded-full hover:bg-slate-200 active:scale-95 outline-none">
+                            <X className="w-4 h-4"/>
+                        </button>
+                    </div>
+
+                    {/* Filter Pills Horizontal */}
+                    <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3 shrink-0 border-b border-slate-100 mb-3 -mx-2 px-2">
+                        {uniquePartUnits.map(unit => (
+                            <button 
+                                key={unit}
+                                onClick={() => setPartStatsFilter(unit)}
+                                className={`px-4 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition-all outline-none ${partStatsFilter === unit ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                            >
+                                {unit}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Filtered List */}
+                    <div className="flex-1 overflow-y-auto scrollbar-hide space-y-2.5 pr-1">
+                        {filteredModalParts.length === 0 ? (
+                            <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-100">
+                                <p className="text-[11px] text-slate-400 font-medium">Tidak ada data untuk filter ini.</p>
+                            </div>
+                        ) : (
+                            filteredModalParts.map((part, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:border-emerald-300 transition-colors shadow-sm">
+                                    <div>
+                                        <p className="text-[12px] font-bold text-slate-800 line-clamp-1">{part.name}</p>
+                                        <p className="text-[10px] text-slate-500 mt-0.5">{part.unit}</p>
+                                    </div>
+                                    <div className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-100 flex flex-col items-center shrink-0 ml-2">
+                                        <span className="text-[14px] font-black leading-none">{part.count}</span>
+                                        <span className="text-[8px] font-bold uppercase tracking-wider mt-0.5">Terjual</span>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+      })()}
+
       <HelpGuideModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
     </div>
   );

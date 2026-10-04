@@ -1,11 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Search, PackageX, ShoppingCart, Plus, ChevronDown, ChevronRight, Loader2, X, FileText, CheckCircle2 } from 'lucide-react';
+import { Search, PackageX, ShoppingCart, Plus, ChevronDown, ChevronRight, Loader2, X, FileText, CheckCircle2, CreditCard } from 'lucide-react';
 import { supabase } from '../supabase';
 import { triggerRipple } from '../utils/ripple';
 import VoiceInputButton from './VoiceInputButton';
 
 // TAMBAHAN AMAN: Menambahkan props untuk menerima data kiriman dari Beranda
-export default function SparepartTab({ preSelectedPart, onClearPreSelectedPart }: { preSelectedPart?: any, onClearPreSelectedPart?: () => void }) {
+export default function SparepartTab({ 
+  preSelectedPart, 
+  onClearPreSelectedPart,
+  setBuyQty,
+  setBuyAddress,
+  setDirectBuyModal,
+  currentUser
+}: { 
+  preSelectedPart?: any; 
+  onClearPreSelectedPart?: () => void;
+  setBuyQty?: (qty: number) => void;
+  setBuyAddress?: (address: string) => void;
+  setDirectBuyModal?: (part: any) => void;
+  currentUser?: any;
+}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
   
@@ -301,12 +315,29 @@ export default function SparepartTab({ preSelectedPart, onClearPreSelectedPart }
                    </p>
                 </div>
 
-                <button 
-                  onClick={(e) => { triggerRipple(e); handleInitiateOrder(); }}
-                  className="ripple-btn w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-[20px] text-[15px] font-bold shadow-xl shadow-slate-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 outline-none mt-2"
-                >
-                  Tambahkan ke Pesanan <ShoppingCart className="w-4 h-4" />
-                </button>
+                <div className="flex gap-2.5 mt-2">
+                    <button 
+                        onClick={() => {
+                            handleInitiateOrder();
+                        }}
+                        className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-4 rounded-xl text-[13px] flex items-center justify-center gap-2 active:scale-95 transition-all outline-none"
+                    >
+                        <span>Tambah ke Pesanan</span>
+                        <ShoppingCart className="w-4 h-4"/>
+                    </button>
+                    <button 
+                        onClick={() => {
+                            if (setBuyQty) setBuyQty(1);
+                            if (setBuyAddress) setBuyAddress(currentUser?.address || '');
+                            if (setDirectBuyModal) setDirectBuyModal(selectedPart);
+                            setSelectedPart(null);
+                        }}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-xl text-[13px] flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-emerald-600/20 outline-none"
+                    >
+                        <span>Beli Langsung</span>
+                        <CreditCard className="w-4 h-4"/>
+                    </button>
+                </div>
              </div>
           </div>
         </div>

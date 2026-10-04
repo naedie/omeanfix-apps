@@ -45,6 +45,10 @@ export default function App() {
   
   // STATE JEMBATAN: Menyimpan data suku cadang dari Beranda untuk dikirim ke SparepartTab
   const [preSelectedPart, setPreSelectedPart] = useState<any | null>(null);
+  const [directBuyModal, setDirectBuyModal] = useState<any | null>(null);
+  const [buyQty, setBuyQty] = useState(1);
+  const [buyAddress, setBuyAddress] = useState('');
+  const [isSubmittingBuy, setIsSubmittingBuy] = useState(false);
 
   const [categories, setCategories] = useState<any[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
@@ -145,6 +149,73 @@ export default function App() {
   const [profEmail, setProfEmail] = useState('pelanggan@omeanfix.com');
   const [profAvatar, setProfAvatar] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const currentUser = {
+    id: customerId || 'cust-direct',
+    full_name: profName,
+    phone: profPhone,
+    email: profEmail,
+    address: buyAddress
+  };
+
+  const setOrdersTab = (tab: any) => {
+    setActiveTab(tab);
+  };
+
+  const handleDirectBuySubmit = async () => {
+    if (!currentUser || !directBuyModal) return;
+    if (!buyAddress.trim()) {
+        alert('Mohon isi alamat pengiriman dengan lengkap.');
+        return;
+    }
+    
+    setIsSubmittingBuy(true);
+    try {
+        const orderCode = 'CRB-' + Math.floor(10000 + Math.random() * 90000);
+        const totalPrice = Number(directBuyModal.price) * buyQty;
+        
+        const payload = {
+            order_code: orderCode,
+            customer_id: currentUser.id,
+            customer_name: currentUser.full_name,
+            customer_phone: currentUser.phone,
+            customer_address: buyAddress,
+            unit_name: 'Pembelian Sparepart',
+            complaint_description: `[PEMBELIAN LANGSUNG]\nBarang: ${directBuyModal.name}\nJumlah: ${buyQty}x\nHarga Satuan: Rp ${Number(directBuyModal.price).toLocaleString('id-ID')}\nAlamat Kirim: ${buyAddress}`,
+            status: 'Menunggu Pembayaran',
+            order_status: 'Menunggu Pembayaran',
+            payment_status: 'pending',
+            total_amount: totalPrice,
+            material_fee: totalPrice,
+            base_fee: 0,
+            transport_fee: 0
+        };
+
+        let { error } = await supabase.from('orders').insert([payload]);
+        if (error && (error.message?.toLowerCase().includes('column') || error.code === '42703' || error.code === 'PGRST204')) {
+            const fallbackPayload: any = {
+                order_code: orderCode,
+                user_phone: currentUser.phone,
+                unit_name: 'Pembelian Sparepart',
+                address: buyAddress,
+                note: payload.complaint_description,
+                status: 'Menunggu Pembayaran'
+            };
+            const retry = await supabase.from('orders').insert([fallbackPayload]);
+            error = retry.error;
+        }
+        if (error) throw error;
+        
+        alert('Pesanan pembelian berhasil dibuat! Silakan cek tab Riwayat Pesanan.');
+        setDirectBuyModal(null);
+        setOrdersTab('riwayat'); // Arahkan ke tab riwayat
+    } catch (err: any) {
+        console.error('Error direct buy:', err);
+        alert('Gagal membuat pesanan: ' + err.message);
+    } finally {
+        setIsSubmittingBuy(false);
+    }
+  };
 
   const specialScrollRef = useRef<HTMLDivElement>(null);
   const voucherScrollRef = useRef<HTMLDivElement>(null); 
@@ -2230,7 +2301,16 @@ export default function App() {
         <div key={activeTab} className="animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out fill-mode-both min-h-full">
           {activeTab === 'beranda' && <HomeContent />}
           {activeTab === 'pesanan' && <OrdersView isHistory={false} />}
-          {activeTab === 'sparepart' && <SparepartTab preSelectedPart={preSelectedPart} onClearPreSelectedPart={() => setPreSelectedPart(null)} />}
+          {activeTab === 'sparepart' && (
+            <SparepartTab 
+              preSelectedPart={preSelectedPart} 
+              onClearPreSelectedPart={() => setPreSelectedPart(null)} 
+              setBuyQty={setBuyQty}
+              setBuyAddress={setBuyAddress}
+              setDirectBuyModal={setDirectBuyModal}
+              currentUser={currentUser}
+            />
+          )}
           {activeTab === 'riwayat' && <OrdersView isHistory={true} />}
           {activeTab === 'profil' && <ProfileContent />}
         </div>
@@ -2578,6 +2658,70 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* MODAL CHECKOUT KILAT PEMBELIAN LANGSUNG */}
+      {directBuyModal && (
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-900/70 backdrop-blur-sm" onClick={() => !isSubmittingBuy && setDirectBuyModal(null)}>
+              <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 animate-in slide-in-from-bottom-full duration-300 shadow-2xl" onClick={e => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-5">
+                      <h3 className="text-[16px] font-black text-slate-900">Beli Langsung</h3>
+                      <button onClick={() => setDirectBuyModal(null)} className="p-2 bg-slate-100 text-slate-500 rounded-full hover:bg-slate-200 outline-none" disabled={isSubmittingBuy}>
+                          <X className="w-4 h-4"/>
+                      </button>
+                  </div>
+                  
+                  <div className="flex gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4">
+                      <div className="w-16 h-16 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                          {directBuyModal.image_url ? (
+                              <img src={directBuyModal.image_url} alt="Part" className="w-full h-full object-cover" />
+                          ) : (
+                              <Package className="w-6 h-6 text-slate-300"/>
+                          )}
+                      </div>
+                      <div>
+                          <p className="text-[12px] font-bold text-slate-800 line-clamp-2">{directBuyModal.name}</p>
+                          <p className="text-[13px] font-black text-indigo-600 mt-1">Rp {Number(directBuyModal.price).toLocaleString('id-ID')}</p>
+                      </div>
+                  </div>
+
+                  <div className="space-y-4">
+                      <div>
+                          <label className="text-[11px] font-bold text-slate-500 block mb-1.5">Jumlah Beli</label>
+                          <div className="flex items-center gap-3">
+                              <button onClick={() => setBuyQty(Math.max(1, buyQty - 1))} className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200 text-slate-600 font-bold outline-none" disabled={buyQty <= 1}>-</button>
+                              <span className="font-black text-[15px] w-8 text-center text-slate-900">{buyQty}</span>
+                              <button onClick={() => setBuyQty(Math.min(Number(directBuyModal.stock || 99), buyQty + 1))} className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200 text-slate-600 font-bold outline-none">+</button>
+                              <span className="text-[11px] text-slate-400 ml-2">(Stok: {directBuyModal.stock})</span>
+                          </div>
+                      </div>
+
+                      <div>
+                          <label className="text-[11px] font-bold text-slate-500 block mb-1.5">Alamat Pengiriman Lengkap (*Wajib)</label>
+                          <textarea 
+                              value={buyAddress} 
+                              onChange={(e) => setBuyAddress(e.target.value)}
+                              placeholder="Cth: Jl. Merdeka No. 10, RT 01/02, Patokan cat hijau..."
+                              className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl text-[12px] text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all resize-none h-20"
+                          />
+                      </div>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
+                      <div>
+                          <p className="text-[10px] text-slate-400 font-bold">Total Pembayaran</p>
+                          <p className="text-[16px] font-black text-emerald-600">Rp {(Number(directBuyModal.price) * buyQty).toLocaleString('id-ID')}</p>
+                      </div>
+                      <button 
+                          onClick={handleDirectBuySubmit}
+                          disabled={isSubmittingBuy || !buyAddress.trim()}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold py-3.5 rounded-xl text-[13px] flex items-center justify-center gap-2 active:scale-95 transition-all outline-none"
+                      >
+                          {isSubmittingBuy ? 'Memproses...' : 'Buat Pesanan'}
+                      </button>
+                  </div>
+              </div>
+          </div>
       )}
 
       <BookingModal isOpen={isBookingOpen} onClose={() => setIsBookingOpen(false)} selectedCategory={selectedCategory} onOpenPrivacy={() => setIsPrivacyOpen(true)} />
